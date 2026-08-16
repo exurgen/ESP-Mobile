@@ -81,6 +81,7 @@ Container.Parent = ScreenGui
 local ContainerStroke = Instance.new("UIStroke")
 ContainerStroke.Color = Color3.fromRGB(255, 255, 255)
 ContainerStroke.Thickness = 2
+ContainerStroke.ZIndex = 101
 ContainerStroke.Parent = Container
 
 local ContainerCorner = Instance.new("UICorner")
@@ -107,7 +108,7 @@ Menu.Name = "Menu"
 Menu.Size = UDim2.fromScale(1, 1)
 Menu.BackgroundTransparency = 1
 Menu.Visible = false
-Menu.ZIndex = 101
+Menu.ZIndex = 102
 Menu.Parent = Container
 
 --header
@@ -116,6 +117,7 @@ TopBar.Name = "DragArea"
 TopBar.Size = UDim2.new(1, 0, 0, 60)
 TopBar.BackgroundTransparency = 1
 TopBar.Active = true
+TopBar.ZIndex = 103
 TopBar.Parent = Menu
 
 local Title = Instance.new("TextLabel")
@@ -127,6 +129,7 @@ Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 19
 Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.ZIndex = 104
 Title.Parent = TopBar
 
 local Subtitle = Instance.new("TextLabel")
@@ -138,6 +141,7 @@ Subtitle.TextColor3 = Color3.fromRGB(145, 145, 145)
 Subtitle.TextSize = 10
 Subtitle.Font = Enum.Font.GothamMedium
 Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.ZIndex = 104
 Subtitle.Parent = TopBar
 
 local CloseButton = Instance.new("TextButton")
@@ -151,7 +155,7 @@ CloseButton.TextSize = 21
 CloseButton.Font = Enum.Font.GothamMedium
 CloseButton.AutoButtonColor = false
 CloseButton.Active = true
-CloseButton.ZIndex = 30
+CloseButton.ZIndex = 120
 CloseButton.Parent = TopBar
 
 local CloseCorner = Instance.new("UICorner")
@@ -161,6 +165,7 @@ CloseCorner.Parent = CloseButton
 local CloseStroke = Instance.new("UIStroke")
 CloseStroke.Color = Color3.fromRGB(255, 255, 255)
 CloseStroke.Thickness = 1
+CloseStroke.ZIndex = 121
 CloseStroke.Parent = CloseButton
 
 local Separator = Instance.new("Frame")
@@ -169,6 +174,7 @@ Separator.Position = UDim2.fromOffset(14, 60)
 Separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Separator.BackgroundTransparency = 0.75
 Separator.BorderSizePixel = 0
+Separator.ZIndex = 104
 Separator.Parent = Menu
 
 --scroll
@@ -183,6 +189,7 @@ Scroll.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 Scroll.ScrollBarImageTransparency = 0.5
 Scroll.ScrollingDirection = Enum.ScrollingDirection.Y
 Scroll.Active = true
+Scroll.ZIndex = 104
 Scroll.Parent = Menu
 
 local Layout = Instance.new("UIListLayout")
