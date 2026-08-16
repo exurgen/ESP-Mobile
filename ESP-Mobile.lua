@@ -56,6 +56,8 @@ local Settings = {
 }
 
 --gui
+local UserInputService = game:GetService("UserInputService")
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MobileESP"
 ScreenGui.ResetOnSpawn = false
@@ -70,7 +72,12 @@ local MenuHeight = Settings.MenuHeight
 local Container = Instance.new("Frame")
 Container.Name = "MainElement"
 Container.Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
-Container.Position = UDim2.new(0.5, -Settings.IconSize / 2, 0.5, -Settings.IconSize / 2)
+Container.Position = UDim2.new(
+  0.5,
+  -Settings.IconSize / 2,
+  0.5,
+  -Settings.IconSize / 2
+)
 Container.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Container.BorderSizePixel = 0
 Container.ClipsDescendants = false
@@ -81,7 +88,6 @@ Container.Parent = ScreenGui
 local ContainerStroke = Instance.new("UIStroke")
 ContainerStroke.Color = Color3.fromRGB(255, 255, 255)
 ContainerStroke.Thickness = 2
-ContainerStroke.ZIndex = 101
 ContainerStroke.Parent = Container
 
 local ContainerCorner = Instance.new("UICorner")
@@ -120,6 +126,7 @@ Menu.Name = "Menu"
 Menu.Size = UDim2.fromScale(1, 1)
 Menu.BackgroundTransparency = 1
 Menu.Visible = false
+Menu.Active = true
 Menu.ZIndex = 102
 Menu.Parent = Container
 
@@ -177,7 +184,6 @@ CloseCorner.Parent = CloseButton
 local CloseStroke = Instance.new("UIStroke")
 CloseStroke.Color = Color3.fromRGB(255, 255, 255)
 CloseStroke.Thickness = 1
-CloseStroke.ZIndex = 121
 CloseStroke.Parent = CloseButton
 
 local Separator = Instance.new("Frame")
@@ -210,7 +216,10 @@ Layout.SortOrder = Enum.SortOrder.LayoutOrder
 Layout.Parent = Scroll
 
 Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-  Scroll.CanvasSize = UDim2.fromOffset(0, Layout.AbsoluteContentSize.Y + 15)
+  Scroll.CanvasSize = UDim2.fromOffset(
+    0,
+    Layout.AbsoluteContentSize.Y + 15
+  )
 end)
 
 --toggles
@@ -340,7 +349,6 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   Stroke.Color = Color3.fromRGB(255, 255, 255)
   Stroke.Thickness = 1
   Stroke.Transparency = 0.72
-  Stroke.ZIndex = 106
   Stroke.Parent = Frame
 
   local Label = Instance.new("TextLabel")
@@ -385,7 +393,6 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   SliderStroke.Color = Color3.fromRGB(255, 255, 255)
   SliderStroke.Thickness = 1
   SliderStroke.Transparency = 0.5
-  SliderStroke.ZIndex = 107
   SliderStroke.Parent = Slider
 
   local Fill = Instance.new("Frame")
@@ -430,6 +437,7 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
     setValue(value)
 
     local alpha = (value - minValue) / (maxValue - minValue)
+
     Fill.Size = UDim2.new(alpha, 0, 1, 0)
     Knob.Position = UDim2.new(alpha, 0, 0.5, 0)
     ValueLabel.Text = tostring(value) .. suffix
@@ -685,18 +693,16 @@ UserInputService.TouchEnded:Connect(function()
 end)
 
 --drag
-local UserInputService = game:GetService("UserInputService")
-
 local Dragging = false
 local DragMoved = false
-local DragInput
-local DragStart
-local DragPosition
+local DragInput = nil
+local DragStart = nil
+local DragPosition = nil
 
 local DRAG_THRESHOLD = 10
 
 local function BeginDrag(input)
-  if ResizeData then return end
+  if ResizeData or Animating then return end
 
   Dragging = true
   DragMoved = false
@@ -706,9 +712,15 @@ local function BeginDrag(input)
 end
 
 local function MoveDrag(input)
-  if not Dragging or input ~= DragInput or ResizeData then return end
+  if not Dragging or input ~= DragInput or ResizeData then
+    return
+  end
 
-  local currentPosition = Vector2.new(input.Position.X, input.Position.Y)
+  local currentPosition = Vector2.new(
+    input.Position.X,
+    input.Position.Y
+  )
+
   local delta = currentPosition - DragStart
 
   if delta.Magnitude >= DRAG_THRESHOLD then
@@ -724,7 +736,9 @@ local function MoveDrag(input)
 end
 
 local function EndDrag(input)
-  if not Dragging or input ~= DragInput then return end
+  if not Dragging or input ~= DragInput then
+    return
+  end
 
   local shouldOpen = not DragMoved and not MenuOpen
 
@@ -750,21 +764,16 @@ MenuDragZone.Visible = false
 MenuDragZone.ZIndex = 115
 MenuDragZone.Parent = Menu
 
--- Both the visible button and enlarged area can start the same drag.
-IconButton.InputBegan:Connect(function(input)
-  if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
-    BeginDrag(input)
-  end
-end)
-
 IconDragZone.InputBegan:Connect(function(input)
-  if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
+  if input.UserInputType == Enum.UserInputType.Touch
+    and not MenuOpen then
     BeginDrag(input)
   end
 end)
 
 MenuDragZone.InputBegan:Connect(function(input)
-  if input.UserInputType == Enum.UserInputType.Touch and MenuOpen then
+  if input.UserInputType == Enum.UserInputType.Touch
+    and MenuOpen then
     BeginDrag(input)
   end
 end)
@@ -780,7 +789,7 @@ end)
 UserInputService.TouchEnded:Connect(function(input)
   EndDrag(input)
 
-  if ResizeData and input == ResizeData.Input then
+  if ResizeData then
     EndResize()
   end
 end)
@@ -793,8 +802,17 @@ end
 UpdateDragZones()
 
 --animation
-local OpenInfo = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-local CloseInfo = TweenInfo.new(0.27, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+local OpenInfo = TweenInfo.new(
+  0.32,
+  Enum.EasingStyle.Quint,
+  Enum.EasingDirection.Out
+)
+
+local CloseInfo = TweenInfo.new(
+  0.27,
+  Enum.EasingStyle.Quint,
+  Enum.EasingDirection.In
+)
 
 local AnimatedElements = {
   Title,
@@ -817,11 +835,24 @@ function OpenMenu()
   MenuOpen = true
 
   IconButton.Visible = false
+  IconDragZone.Visible = false
+
   Menu.Visible = true
+  MenuDragZone.Visible = true
+
   SetResizeVisible(true)
 
-  MenuWidth = math.clamp(MenuWidth, MIN_MENU_WIDTH, MAX_MENU_WIDTH)
-  MenuHeight = math.clamp(MenuHeight, MIN_MENU_HEIGHT, MAX_MENU_HEIGHT)
+  MenuWidth = math.clamp(
+    MenuWidth,
+    MIN_MENU_WIDTH,
+    MAX_MENU_WIDTH
+  )
+
+  MenuHeight = math.clamp(
+    MenuHeight,
+    MIN_MENU_HEIGHT,
+    MAX_MENU_HEIGHT
+  )
 
   Settings.MenuWidth = MenuWidth
   Settings.MenuHeight = MenuHeight
@@ -844,6 +875,7 @@ function OpenMenu()
       position.Y.Scale,
       position.Y.Offset - 35
     )
+
     object.Visible = true
   end
 
@@ -864,7 +896,9 @@ function OpenMenu()
   end
 
   task.delay(0.35, function()
-    Animating = false
+    if MenuOpen then
+      Animating = false
+    end
   end)
 end
 
@@ -872,7 +906,9 @@ local function CloseMenu()
   if not MenuOpen or Animating then return end
 
   Animating = true
+
   SetResizeVisible(false)
+  MenuDragZone.Visible = false
 
   for index, object in ipairs(AnimatedElements) do
     local position = OriginalPositions[object]
@@ -896,13 +932,17 @@ local function CloseMenu()
   task.wait(0.18)
 
   TweenService:Create(Container, CloseInfo, {
-    Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
+    Size = UDim2.fromOffset(
+      Settings.IconSize,
+      Settings.IconSize
+    )
   }):Play()
 
   task.wait(0.27)
 
   Menu.Visible = false
   IconButton.Visible = true
+  IconDragZone.Visible = true
 
   for _, object in ipairs(AnimatedElements) do
     object.Position = OriginalPositions[object]
@@ -910,8 +950,8 @@ local function CloseMenu()
 
   MenuOpen = false
   Animating = false
+
   UpdateDragZones()
-  UpdateIconHitbox()
 end
 
 CloseButton.Activated:Connect(CloseMenu)
