@@ -42,8 +42,10 @@ local DEFAULT_COLORS = {
     EnemyDistance = Color3.fromRGB(220, 220, 220),
     TeamDistance = Color3.fromRGB(220, 220, 220),
 
-    EnemyBox = Color3.fromRGB(70, 255, 100),
-    TeamBox = Color3.fromRGB(255, 235, 50)
+    EnemyBoxVisible = Color3.fromRGB(70, 255, 100),
+    EnemyBoxHidden = Color3.fromRGB(255, 60, 60),
+    TeamBoxVisible = Color3.fromRGB(255, 235, 50),
+    TeamBoxHidden = Color3.fromRGB(255, 145, 30)
 }
 
 local Colors = {}
@@ -276,65 +278,37 @@ Tabs.About:Paragraph({
 })
 
 local AboutSection = Tabs.About:Section({
-    Title = "About",
+    Title = "Overview",
     Icon = "info",
     Opened = true,
     Box = true
 })
 
 AboutSection:Paragraph({
-    Title = "Welcome",
-    Desc = "Configure names, distance, highlights and 2D boxes with separate enemy and teammate profiles.",
-    Image = "sparkles",
-    ImageSize = 20
-})
-
-local FeaturesInfo = Tabs.About:Section({
-    Title = "Features",
-    Icon = "layers-3",
-    Opened = true,
-    Box = true
-})
-
-FeaturesInfo:Paragraph({
     Title = "ESP",
     Desc = "Names, distance, body-part highlights and 2D boxes.",
     Image = "eye",
     ImageSize = 18
 })
 
-FeaturesInfo:Paragraph({
-    Title = "Visibility",
-    Desc = "Visibility detection with character or camera ray origin.",
+AboutSection:Paragraph({
+    Title = "Detection",
+    Desc = "Body-part or normal raycasting with selectable origin.",
     Image = "scan-search",
     ImageSize = 18
 })
 
-FeaturesInfo:Paragraph({
+AboutSection:Paragraph({
     Title = "Profiles",
     Desc = "Independent enemy and teammate settings.",
     Image = "users",
     ImageSize = 18
 })
 
-FeaturesInfo:Paragraph({
-    Title = "Text",
-    Desc = "Standard and distance-based dynamic text sizing.",
-    Image = "type",
-    ImageSize = 18
-})
-
-FeaturesInfo:Paragraph({
-    Title = "Colors",
-    Desc = "Independent colors for highlights, text and boxes.",
+AboutSection:Paragraph({
+    Title = "Customization",
+    Desc = "Dynamic text, custom colors and two box modes.",
     Image = "palette",
-    ImageSize = 18
-})
-
-FeaturesInfo:Paragraph({
-    Title = "2D Boxes",
-    Desc = "Performance and Accurate box calculation modes.",
-    Image = "square",
     ImageSize = 18
 })
 
@@ -448,6 +422,27 @@ DistanceSection:Slider({
     end
 })
 
+local BoxModeSection = Tabs.ESP:Section({
+    Title = "2D Box Mode",
+    Icon = "square",
+    Opened = true,
+    Box = true
+})
+
+BoxModeSection:Dropdown({
+    Title = "Box Mode",
+    Desc = "Choose box calculation method",
+    Values = {
+        "Performance",
+        "Accurate"
+    },
+    Value = Settings.BoxMode,
+
+    Callback = function(Value)
+        Settings.BoxMode = Value
+    end
+})
+
 local ESPResetSection = Tabs.ESP:Section({
     Title = "Reset",
     Icon = "rotate-ccw",
@@ -455,12 +450,6 @@ local ESPResetSection = Tabs.ESP:Section({
     Box = true
 })
 
-ESPResetSection:Paragraph({
-    Title = "Reset ESP",
-    Desc = "Restore the ESP tab to its default values.",
-    Image = "info",
-    ImageSize = 16
-})
 
 ESPResetSection:Divider()
 
@@ -590,12 +579,6 @@ local SidesResetSection = Tabs.Sides:Section({
     Box = true
 })
 
-SidesResetSection:Paragraph({
-    Title = "Reset Profiles",
-    Desc = "Restore both enemy and teammate profiles.",
-    Image = "info",
-    ImageSize = 16
-})
 
 SidesResetSection:Divider()
 
@@ -650,39 +633,37 @@ DetectionSection:Toggle({
 
 DetectionSection:Toggle({
     Title = "Automatic Fallback",
-    Desc = "Use normal raycast at longer distances",
+    Desc = "Switch to normal raycast farther away",
     Value = Settings.BodyPartRaycastFallback,
     Callback = function(Value)
         Settings.BodyPartRaycastFallback = Value
     end
 })
 
-DetectionSection:Dropdown({
-    Title = "Raycast Origin",
-    Desc = "Choose ray origin",
-    Values = {
-        "Character",
-        "Camera"
-    },
-    Value = Settings.RayOrigin,
-
-    Callback = function(Value)
-        Settings.RayOrigin = Value
-    end
-})
-
 DetectionSection:Slider({
-    Title = "Body Part Raycast Distance",
-    Desc = "Distance before fallback",
+    Title = "Fallback Distance",
+    Desc = "Distance where normal raycast starts",
     Value = {
         Min = MIN_DISTANCE,
         Max = MAX_DISTANCE,
         Default = Settings.BodyPartRaycastDistance
     },
     Step = 1,
-
     Callback = function(Value)
         Settings.BodyPartRaycastDistance = Value
+    end
+})
+
+DetectionSection:Dropdown({
+    Title = "Raycast Origin",
+    Desc = "Choose where rays start",
+    Values = {
+        "Character",
+        "Camera"
+    },
+    Value = Settings.RayOrigin,
+    Callback = function(Value)
+        Settings.RayOrigin = Value
     end
 })
 
@@ -693,12 +674,6 @@ local DetectionResetSection = Tabs.Detection:Section({
     Box = true
 })
 
-DetectionResetSection:Paragraph({
-    Title = "Reset Detection",
-    Desc = "Restore visibility and raycast defaults.",
-    Image = "info",
-    ImageSize = 16
-})
 
 DetectionResetSection:Divider()
 
@@ -901,12 +876,6 @@ local TextResetSection = Tabs.Text:Section({
     Box = true
 })
 
-TextResetSection:Paragraph({
-    Title = "Reset Text",
-    Desc = "Restore all text settings.",
-    Image = "info",
-    ImageSize = 16
-})
 
 TextResetSection:Divider()
 
@@ -1036,16 +1005,30 @@ local BoxColors = Tabs.Colors:Section({
 
 CreateColorPicker(
     BoxColors,
-    "Enemy Box",
-    "Enemy box",
-    "EnemyBox"
+    "Enemy Visible",
+    "Visible enemy box",
+    "EnemyBoxVisible"
 )
 
 CreateColorPicker(
     BoxColors,
-    "Teammate Box",
-    "Teammate box",
-    "TeamBox"
+    "Enemy Behind Wall",
+    "Hidden enemy box",
+    "EnemyBoxHidden"
+)
+
+CreateColorPicker(
+    BoxColors,
+    "Teammate Visible",
+    "Visible teammate box",
+    "TeamBoxVisible"
+)
+
+CreateColorPicker(
+    BoxColors,
+    "Teammate Behind Wall",
+    "Hidden teammate box",
+    "TeamBoxHidden"
 )
 
 local ColorsResetSection = Tabs.Colors:Section({
@@ -1055,12 +1038,6 @@ local ColorsResetSection = Tabs.Colors:Section({
     Box = true
 })
 
-ColorsResetSection:Paragraph({
-    Title = "Reset Colors",
-    Desc = "Restore all ESP colors.",
-    Image = "info",
-    ImageSize = 16
-})
 
 ColorsResetSection:Divider()
 
@@ -1081,33 +1058,6 @@ ColorsResetSection:Button({
     end
 })
 
-Tabs.Colors:Paragraph({
-    Title = "Color Profiles",
-    Desc = "2D boxes use the same default colors as visible highlights.",
-    Image = "info",
-    ImageSize = 18
-})
-
-local BoxModeSection = Tabs.ESP:Section({
-    Title = "2D Box Mode",
-    Icon = "square",
-    Opened = true,
-    Box = true
-})
-
-BoxModeSection:Dropdown({
-    Title = "Box Mode",
-    Desc = "Choose box calculation method",
-    Values = {
-        "Performance",
-        "Accurate"
-    },
-    Value = Settings.BoxMode,
-
-    Callback = function(Value)
-        Settings.BoxMode = Value
-    end
-})
 
 Tabs.Settings:Paragraph({
     Title = "Interface",
@@ -1433,13 +1383,13 @@ end
 local function GetBoxColor(Player, Visible)
     if GetSide(Player) == "Teammate" then
         return Visible
-            and Colors.TeamVisible
-            or Colors.TeamHidden
+            and Colors.TeamBoxVisible
+            or Colors.TeamBoxHidden
     end
 
     return Visible
-        and Colors.EnemyVisible
-        or Colors.EnemyHidden
+        and Colors.EnemyBoxVisible
+        or Colors.EnemyBoxHidden
 end
 
 local function GetDynamicSize(Distance, MinSize, MaxSize)
