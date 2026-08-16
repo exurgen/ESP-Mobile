@@ -66,6 +66,7 @@ local Window = WindUI:CreateWindow({
   }
 })
 
+-- sections
 local Sections = {
   Features = Window:Section({
     Title = "FEATURES",
@@ -117,7 +118,9 @@ local ESPSection = Tabs.ESP:Section({
 ESPSection:Toggle({
   Title = "ESP",
   Desc = "Show players through the world",
+  Flag = "ESP",
   Value = Settings.ESP,
+
   Callback = function(value)
     Settings.ESP = value
   end
@@ -126,7 +129,9 @@ ESPSection:Toggle({
 ESPSection:Toggle({
   Title = "Distance",
   Desc = "Show distance to players",
+  Flag = "ShowDistance",
   Value = Settings.ShowDistance,
+
   Callback = function(value)
     Settings.ShowDistance = value
   end
@@ -135,7 +140,9 @@ ESPSection:Toggle({
 ESPSection:Toggle({
   Title = "Visibility Check",
   Desc = "Change color depending on walls",
+  Flag = "VisibilityCheck",
   Value = Settings.VisibilityCheck,
+
   Callback = function(value)
     Settings.VisibilityCheck = value
   end
@@ -144,7 +151,9 @@ ESPSection:Toggle({
 ESPSection:Toggle({
   Title = "Team Check",
   Desc = "Use different colors for teammates",
+  Flag = "TeamCheck",
   Value = Settings.TeamCheck,
+
   Callback = function(value)
     Settings.TeamCheck = value
   end
@@ -162,12 +171,16 @@ local DistanceSection = Tabs.ESP:Section({
 DistanceSection:Slider({
   Title = "ESP Distance",
   Desc = "Maximum distance for ESP",
+  Flag = "ESPDistance",
+
   Value = {
     Min = MIN_DISTANCE,
     Max = MAX_DISTANCE,
     Default = DEFAULT_DISTANCE
   },
+
   Step = 1,
+
   Callback = function(value)
     Settings.ESPDistance = value
   end
@@ -191,12 +204,16 @@ local TextSection = Tabs.Misc:Section({
 TextSection:Slider({
   Title = "Name Size",
   Desc = "Size of player names",
+  Flag = "NameSize",
+
   Value = {
     Min = MIN_NAME_SIZE,
     Max = MAX_NAME_SIZE,
     Default = DEFAULT_NAME_SIZE
   },
+
   Step = 1,
+
   Callback = function(value)
     Settings.NameSize = value
   end
@@ -205,12 +222,16 @@ TextSection:Slider({
 TextSection:Slider({
   Title = "Distance Text Size",
   Desc = "Size of distance text",
+  Flag = "DistanceSize",
+
   Value = {
     Min = MIN_DISTANCE_SIZE,
     Max = MAX_DISTANCE_SIZE,
     Default = DEFAULT_DISTANCE_SIZE
   },
+
   Step = 1,
+
   Callback = function(value)
     Settings.DistanceSize = value
   end
@@ -218,8 +239,8 @@ TextSection:Slider({
 
 -- settings tab
 Tabs.Settings:Paragraph({
-  Title = "Interface",
-  Desc = "Customize the appearance of the ESP menu.",
+  Title = "Customize Interface",
+  Desc = "Personalize the appearance of your ESP menu.",
   Image = "palette",
   ImageSize = 20
 })
@@ -231,9 +252,10 @@ local AppearanceSection = Tabs.Settings:Section({
   Box = true
 })
 
+-- themes
 local Themes = {}
 
-for ThemeName in pairs(WindUI:GetThemes()) do
+for ThemeName, _ in pairs(WindUI:GetThemes()) do
   table.insert(Themes, ThemeName)
 end
 
@@ -242,10 +264,15 @@ table.sort(Themes)
 local ThemeDropdown = AppearanceSection:Dropdown({
   Title = "Theme",
   Desc = "Choose the interface theme",
+
   Values = Themes,
+
   Flag = "ThemeDropdown",
+
   SearchBarEnabled = true,
+
   MenuWidth = 280,
+
   Value = "Dark",
 
   Callback = function(theme)
@@ -255,26 +282,6 @@ local ThemeDropdown = AppearanceSection:Dropdown({
       Title = "Theme Applied",
       Content = theme,
       Icon = "palette",
-      Duration = 2
-    })
-  end
-})
-
-AppearanceSection:Divider()
-
-AppearanceSection:Button({
-  Title = "Reset Theme",
-  Desc = "Return to the default dark theme",
-  Icon = "rotate-ccw",
-
-  Callback = function()
-    WindUI:SetTheme("Dark")
-    ThemeDropdown:Select("Dark")
-
-    WindUI:Notify({
-      Title = "Theme Reset",
-      Content = "Dark theme applied",
-      Icon = "check",
       Duration = 2
     })
   end
@@ -477,6 +484,7 @@ local function UpdateESP(player, Data)
   Data.Billboard.Enabled = true
   Data.Name.TextSize = Settings.NameSize
   Data.Distance.TextSize = Settings.DistanceSize
+
   Data.Name.TextColor3 = GetPlayerColor(
     player,
     Character
