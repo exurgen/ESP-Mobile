@@ -8,7 +8,6 @@ local WindUI = loadstring(game:HttpGet(
   "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
 ))()
 
--- limits
 local MIN_DISTANCE = 50
 local MAX_DISTANCE = 2000
 local DEFAULT_DISTANCE = 1000
@@ -35,32 +34,21 @@ local DEFAULT_COLORS = {
   TeamHidden = Color3.fromRGB(255, 145, 30),
 
   EnemyName = Color3.fromRGB(255, 255, 255),
-  TeamName = Color3.fromRGB(255, 235, 50),
+  TeamName = Color3.fromRGB(255, 255, 255),
 
   EnemyDistance = Color3.fromRGB(220, 220, 220),
-  TeamDistance = Color3.fromRGB(255, 235, 50),
+  TeamDistance = Color3.fromRGB(220, 220, 220),
 
   EnemyBox = Color3.fromRGB(255, 255, 255),
   TeamBox = Color3.fromRGB(255, 235, 50)
 }
 
-local Colors = {
-  EnemyVisible = DEFAULT_COLORS.EnemyVisible,
-  EnemyHidden = DEFAULT_COLORS.EnemyHidden,
-  TeamVisible = DEFAULT_COLORS.TeamVisible,
-  TeamHidden = DEFAULT_COLORS.TeamHidden,
+local Colors = {}
 
-  EnemyName = DEFAULT_COLORS.EnemyName,
-  TeamName = DEFAULT_COLORS.TeamName,
+for Name, Color in pairs(DEFAULT_COLORS) do
+  Colors[Name] = Color
+end
 
-  EnemyDistance = DEFAULT_COLORS.EnemyDistance,
-  TeamDistance = DEFAULT_COLORS.TeamDistance,
-
-  EnemyBox = DEFAULT_COLORS.EnemyBox,
-  TeamBox = DEFAULT_COLORS.TeamBox
-}
-
--- settings
 local Settings = {
   ESP = true,
   VisibilityCheck = true,
@@ -78,6 +66,7 @@ local Settings = {
   BoxDistance = DEFAULT_DISTANCE,
 
   BodyPartRaycastDistance = 500,
+  BodyPartRaycastFallback = true,
 
   NameSize = DEFAULT_NAME_SIZE,
   DistanceSize = DEFAULT_DISTANCE_SIZE,
@@ -97,55 +86,17 @@ local Settings = {
 
 local SideSettings = {
   Enemy = {
-    Highlight = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    },
-
-    Box = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    },
-
-    Name = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    },
-
-    Distance = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    }
+    Highlight = {Enabled = true, NearDisable = false, NearDistance = 100},
+    Box = {Enabled = true, NearDisable = false, NearDistance = 100},
+    Name = {Enabled = true, NearDisable = false, NearDistance = 100},
+    Distance = {Enabled = true, NearDisable = false, NearDistance = 100}
   },
 
   Teammate = {
-    Highlight = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    },
-
-    Box = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    },
-
-    Name = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    },
-
-    Distance = {
-      Enabled = true,
-      NearDisable = false,
-      NearDistance = 100
-    }
+    Highlight = {Enabled = true, NearDisable = false, NearDistance = 100},
+    Box = {Enabled = true, NearDisable = false, NearDistance = 100},
+    Name = {Enabled = true, NearDisable = false, NearDistance = 100},
+    Distance = {Enabled = true, NearDisable = false, NearDistance = 100}
   }
 }
 
@@ -175,7 +126,6 @@ local BodyPartNames = {
   "HumanoidRootPart"
 }
 
--- window
 local Window = WindUI:CreateWindow({
   Title = "PLAYER ESP",
   Icon = "eye",
@@ -199,6 +149,11 @@ local Window = WindUI:CreateWindow({
 })
 
 local Sections = {
+  About = Window:Section({
+    Title = "ABOUT",
+    Opened = true
+  }),
+
   Features = Window:Section({
     Title = "FEATURES",
     Opened = true
@@ -211,10 +166,16 @@ local Sections = {
 }
 
 local Tabs = {
+  About = Sections.About:Tab({
+    Title = "About",
+    Icon = "house",
+    Desc = "Information about Player ESP"
+  }),
+
   ESP = Sections.Features:Tab({
     Title = "ESP",
     Icon = "eye",
-    Desc = "Main ESP"
+    Desc = "Main ESP features"
   }),
 
   Sides = Sections.Features:Tab({
@@ -248,7 +209,97 @@ local Tabs = {
   })
 }
 
--- ESP
+Tabs.About:Paragraph({
+  Title = "PLAYER ESP",
+  Desc = "Advanced player visualization system",
+  Image = "eye",
+  ImageSize = 26
+})
+
+local AboutSection = Tabs.About:Section({
+  Title = "About",
+  Icon = "info",
+  Opened = true,
+  Box = true
+})
+
+AboutSection:Paragraph({
+  Title = "Welcome",
+  Desc = "A customizable player visualization system with independent enemy and teammate profiles, advanced visibility detection and performance controls.",
+  Image = "sparkles",
+  ImageSize = 20
+})
+
+local FeaturesInfo = Tabs.About:Section({
+  Title = "Features",
+  Icon = "layers-3",
+  Opened = true,
+  Box = true
+})
+
+FeaturesInfo:Paragraph({
+  Title = "ESP Elements",
+  Desc = "Names, distance, individual body-part highlights and 2D boxes.",
+  Image = "eye",
+  ImageSize = 18
+})
+
+FeaturesInfo:Paragraph({
+  Title = "Visibility Detection",
+  Desc = "Normal or individual body-part raycasting with configurable ray origin and distance-based optimization.",
+  Image = "scan-search",
+  ImageSize = 18
+})
+
+FeaturesInfo:Paragraph({
+  Title = "Enemy & Teammate Profiles",
+  Desc = "Every ESP element can be configured independently for enemies and teammates.",
+  Image = "users",
+  ImageSize = 18
+})
+
+FeaturesInfo:Paragraph({
+  Title = "Dynamic Text",
+  Desc = "Names and distance can dynamically change size according to player distance.",
+  Image = "move-diagonal-2",
+  ImageSize = 18
+})
+
+FeaturesInfo:Paragraph({
+  Title = "Custom Colors",
+  Desc = "Independent colors for visibility states, names, distance and boxes.",
+  Image = "palette",
+  ImageSize = 18
+})
+
+local PerformanceInfo = Tabs.About:Section({
+  Title = "Performance",
+  Icon = "zap",
+  Opened = true,
+  Box = true
+})
+
+PerformanceInfo:Paragraph({
+  Title = "Raycast Optimization",
+  Desc = "Body-part raycasting provides precise visibility information. You can configure when it switches to normal raycasting or disable the automatic transition.",
+  Image = "zap",
+  ImageSize = 18
+})
+
+PerformanceInfo:Paragraph({
+  Title = "Distance Controls",
+  Desc = "Highlight, boxes, names and distance have independent maximum distances and optional close-range disabling.",
+  Image = "maximize",
+  ImageSize = 18
+})
+
+Tabs.About:Paragraph({
+  Title = "Tip",
+  Desc = "For better performance, use body-part raycasting at shorter distances and normal raycasting at longer distances.",
+  Image = "lightbulb",
+  ImageSize = 18
+})
+
 Tabs.ESP:Paragraph({
   Title = "Player ESP",
   Desc = "Control the main ESP features.",
@@ -283,7 +334,7 @@ ESPSection:Toggle({
 
 ESPSection:Toggle({
   Title = "Distance",
-  Desc = "Show distance below names",
+  Desc = "Show distance to players",
   Value = Settings.ShowDistance,
   Callback = function(value)
     Settings.ShowDistance = value
@@ -317,8 +368,6 @@ ESPSection:Toggle({
   end
 })
 
-ESPSection:Divider()
-
 local DistanceSection = Tabs.ESP:Section({
   Title = "Distances",
   Icon = "maximize",
@@ -342,7 +391,7 @@ DistanceSection:Slider({
 
 DistanceSection:Slider({
   Title = "Highlight Distance",
-  Desc = "Maximum distance for Highlight",
+  Desc = "Maximum distance for highlights",
   Value = {
     Min = MIN_DISTANCE,
     Max = MAX_DISTANCE,
@@ -356,7 +405,7 @@ DistanceSection:Slider({
 
 DistanceSection:Slider({
   Title = "Box Distance",
-  Desc = "Maximum distance for 2D Box",
+  Desc = "Maximum distance for 2D boxes",
   Value = {
     Min = MIN_DISTANCE,
     Max = MAX_DISTANCE,
@@ -368,7 +417,6 @@ DistanceSection:Slider({
   end
 })
 
--- sides
 Tabs.Sides:Paragraph({
   Title = "Side Profiles",
   Desc = "Configure ESP elements independently for enemies and teammates.",
@@ -378,7 +426,7 @@ Tabs.Sides:Paragraph({
 
 local SelectedSide = "Enemy"
 
-local SideDropdown = Tabs.Sides:Dropdown({
+Tabs.Sides:Dropdown({
   Title = "Side",
   Desc = "Choose which side to configure",
   Values = {
@@ -443,12 +491,11 @@ CreateSideControl("Distance", "Distance", "Show player distance")
 
 Tabs.Sides:Paragraph({
   Title = "Near Disable",
-  Desc = "Every feature can have its own close-range distance or stay enabled at any distance.",
+  Desc = "Each feature can have its own close-range distance or stay enabled at any distance.",
   Image = "info",
   ImageSize = 18
 })
 
--- detection
 Tabs.Detection:Paragraph({
   Title = "Visibility Detection",
   Desc = "Control raycast mode, origin and optimization.",
@@ -481,6 +528,15 @@ DetectionSection:Toggle({
   end
 })
 
+DetectionSection:Toggle({
+  Title = "Automatic Raycast Fallback",
+  Desc = "Switch to normal raycast after the selected distance",
+  Value = Settings.BodyPartRaycastFallback,
+  Callback = function(value)
+    Settings.BodyPartRaycastFallback = value
+  end
+})
+
 DetectionSection:Dropdown({
   Title = "Raycast Origin",
   Desc = "Where rays start from",
@@ -496,7 +552,7 @@ DetectionSection:Dropdown({
 
 DetectionSection:Slider({
   Title = "Body Part Raycast Distance",
-  Desc = "Beyond this distance use normal raycast",
+  Desc = "Distance used before normal raycast",
   Value = {
     Min = MIN_DISTANCE,
     Max = MAX_DISTANCE,
@@ -510,12 +566,11 @@ DetectionSection:Slider({
 
 Tabs.Detection:Paragraph({
   Title = "Optimization",
-  Desc = "Body-part raycasting is more precise but more expensive. Past the selected distance the system switches to one normal raycast.",
+  Desc = "Body-part raycasting is more precise but more expensive. Automatic fallback can switch to one normal raycast at longer distances.",
   Image = "zap",
   ImageSize = 18
 })
 
--- text
 Tabs.Text:Paragraph({
   Title = "Text Settings",
   Desc = "Configure normal and dynamic text size.",
@@ -657,10 +712,9 @@ DynamicSection:Slider({
   end
 })
 
--- colors
 Tabs.Colors:Paragraph({
   Title = "ESP Colors",
-  Desc = "Choose custom colors for every ESP state and element.",
+  Desc = "Customize colors for every ESP state and element.",
   Image = "palette",
   ImageSize = 20
 })
@@ -769,14 +823,36 @@ CreateColorPicker(
   "TeamBox"
 )
 
+local function ResetColors()
+  for Name, Color in pairs(DEFAULT_COLORS) do
+    Colors[Name] = Color
+  end
+end
+
+Tabs.Colors:Button({
+  Title = "Reset Colors",
+  Desc = "Restore all ESP colors to their defaults",
+  Icon = "rotate-ccw",
+
+  Callback = function()
+    ResetColors()
+
+    WindUI:Notify({
+      Title = "Colors Reset",
+      Content = "All ESP colors restored",
+      Icon = "check",
+      Duration = 2
+    })
+  end
+})
+
 Tabs.Colors:Paragraph({
   Title = "Custom Colors",
-  Desc = "These colors are independent from the WindUI theme and only affect ESP visuals.",
+  Desc = "ESP colors are independent from the WindUI interface theme.",
   Image = "info",
   ImageSize = 18
 })
 
--- interface
 Tabs.Settings:Paragraph({
   Title = "Interface",
   Desc = "Customize the WindUI interface.",
@@ -830,7 +906,6 @@ AppearanceSection:Button({
 
 Window:Open()
 
--- helpers
 local function GetCharacter(player)
   local Character = player.Character
 
@@ -936,9 +1011,14 @@ local function GetVisibility(character, distance)
 
   local Parts = GetBodyParts(character)
 
-  if not Settings.BodyPartRaycast
-    or distance > Settings.BodyPartRaycastDistance then
+  local UseBodyParts =
+    Settings.BodyPartRaycast
+    and (
+      not Settings.BodyPartRaycastFallback
+      or distance <= Settings.BodyPartRaycastDistance
+    )
 
+  if not UseBodyParts then
     local Root = GetRoot(character)
 
     if not Root then
@@ -1273,8 +1353,14 @@ local function UpdateHighlights(player, Data, character, distance, side)
       local Visible = true
 
       if Settings.VisibilityCheck then
-        if Settings.BodyPartRaycast
-          and distance <= Settings.BodyPartRaycastDistance then
+        local UseBodyParts =
+          Settings.BodyPartRaycast
+          and (
+            not Settings.BodyPartRaycastFallback
+            or distance <= Settings.BodyPartRaycastDistance
+          )
+
+        if UseBodyParts then
           Visible = VisibleParts[Part] == true
         else
           Visible = AnyVisible
@@ -1352,28 +1438,25 @@ local function UpdateText(player, Data, distance, side)
   end
 end
 
+local function DisableESP(Data)
+  Data.Billboard.Enabled = false
+  Data.Box.Visible = false
+
+  for _, Highlight in pairs(Data.Highlights) do
+    Highlight.Enabled = false
+  end
+end
+
 local function UpdateESP(player, Data)
   if not Settings.ESP then
-    Data.Billboard.Enabled = false
-    Data.Box.Visible = false
-
-    for _, Highlight in pairs(Data.Highlights) do
-      Highlight.Enabled = false
-    end
-
+    DisableESP(Data)
     return
   end
 
   local Character = GetCharacter(player)
 
   if not Character then
-    Data.Billboard.Enabled = false
-    Data.Box.Visible = false
-
-    for _, Highlight in pairs(Data.Highlights) do
-      Highlight.Enabled = false
-    end
-
+    DisableESP(Data)
     return
   end
 
@@ -1397,13 +1480,7 @@ local function UpdateESP(player, Data)
     or not MyRoot
     or Humanoid.Health <= 0 then
 
-    Data.Billboard.Enabled = false
-    Data.Box.Visible = false
-
-    for _, Highlight in pairs(Data.Highlights) do
-      Highlight.Enabled = false
-    end
-
+    DisableESP(Data)
     return
   end
 
@@ -1451,7 +1528,6 @@ local function UpdateESP(player, Data)
   )
 end
 
--- players
 for _, player in ipairs(Players:GetPlayers()) do
   if player ~= LocalPlayer then
     CreateESP(player)
