@@ -210,6 +210,7 @@ local function CreateToggle(title, description, setting)
   Button.Text = ""
   Button.AutoButtonColor = false
   Button.Active = true
+  Button.ZIndex = 105
   Button.Parent = Scroll
 
   local Corner = Instance.new("UICorner")
@@ -220,6 +221,7 @@ local function CreateToggle(title, description, setting)
   Stroke.Color = Color3.fromRGB(255, 255, 255)
   Stroke.Thickness = 1
   Stroke.Transparency = 0.72
+  Stroke.ZIndex = 106
   Stroke.Parent = Button
 
   local Label = Instance.new("TextLabel")
@@ -231,6 +233,7 @@ local function CreateToggle(title, description, setting)
   Label.TextSize = 13
   Label.Font = Enum.Font.GothamMedium
   Label.TextXAlignment = Enum.TextXAlignment.Left
+  Label.ZIndex = 106
   Label.Parent = Button
 
   local Desc = Instance.new("TextLabel")
@@ -242,6 +245,7 @@ local function CreateToggle(title, description, setting)
   Desc.TextSize = 9
   Desc.Font = Enum.Font.Gotham
   Desc.TextXAlignment = Enum.TextXAlignment.Left
+  Desc.ZIndex = 106
   Desc.Parent = Button
 
   local Switch = Instance.new("Frame")
@@ -249,6 +253,7 @@ local function CreateToggle(title, description, setting)
   Switch.Position = UDim2.new(1, -59, 0.5, -12)
   Switch.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
   Switch.BorderSizePixel = 0
+  Switch.ZIndex = 106
   Switch.Parent = Button
 
   local SwitchCorner = Instance.new("UICorner")
@@ -259,6 +264,7 @@ local function CreateToggle(title, description, setting)
   SwitchStroke.Color = Color3.fromRGB(255, 255, 255)
   SwitchStroke.Thickness = 1
   SwitchStroke.Transparency = 0.45
+  SwitchStroke.ZIndex = 107
   SwitchStroke.Parent = Switch
 
   local Dot = Instance.new("Frame")
@@ -266,6 +272,7 @@ local function CreateToggle(title, description, setting)
   Dot.Position = UDim2.fromOffset(3, 3)
   Dot.BackgroundColor3 = Color3.fromRGB(130, 130, 130)
   Dot.BorderSizePixel = 0
+  Dot.ZIndex = 107
   Dot.Parent = Switch
 
   local DotCorner = Instance.new("UICorner")
@@ -305,13 +312,12 @@ CreateToggle("Visibility Check", "Green / red depending on walls", "VisibilityCh
 CreateToggle("Team Check", "Yellow / orange for teammates", "TeamCheck")
 
 --sliders
-local UserInputService = game:GetService("UserInputService")
-
 local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffix)
   local Frame = Instance.new("Frame")
   Frame.Size = UDim2.new(1, -3, 0, 82)
   Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
   Frame.BorderSizePixel = 0
+  Frame.ZIndex = 105
   Frame.Parent = Scroll
 
   local Corner = Instance.new("UICorner")
@@ -322,6 +328,7 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   Stroke.Color = Color3.fromRGB(255, 255, 255)
   Stroke.Thickness = 1
   Stroke.Transparency = 0.72
+  Stroke.ZIndex = 106
   Stroke.Parent = Frame
 
   local Label = Instance.new("TextLabel")
@@ -333,6 +340,7 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   Label.TextSize = 13
   Label.Font = Enum.Font.GothamMedium
   Label.TextXAlignment = Enum.TextXAlignment.Left
+  Label.ZIndex = 106
   Label.Parent = Frame
 
   local ValueLabel = Instance.new("TextLabel")
@@ -343,6 +351,7 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   ValueLabel.TextSize = 11
   ValueLabel.Font = Enum.Font.GothamBold
   ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+  ValueLabel.ZIndex = 106
   ValueLabel.Parent = Frame
 
   local Slider = Instance.new("TextButton")
@@ -353,6 +362,7 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   Slider.Text = ""
   Slider.AutoButtonColor = false
   Slider.Active = true
+  Slider.ZIndex = 106
   Slider.Parent = Frame
 
   local SliderCorner = Instance.new("UICorner")
@@ -363,12 +373,14 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   SliderStroke.Color = Color3.fromRGB(255, 255, 255)
   SliderStroke.Thickness = 1
   SliderStroke.Transparency = 0.5
+  SliderStroke.ZIndex = 107
   SliderStroke.Parent = Slider
 
   local Fill = Instance.new("Frame")
   Fill.Size = UDim2.fromScale(0, 1)
   Fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
   Fill.BorderSizePixel = 0
+  Fill.ZIndex = 107
   Fill.Parent = Slider
 
   local FillCorner = Instance.new("UICorner")
@@ -381,13 +393,13 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   Knob.Position = UDim2.new(0, 0, 0.5, 0)
   Knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
   Knob.BorderSizePixel = 0
+  Knob.ZIndex = 108
   Knob.Parent = Slider
 
   local KnobCorner = Instance.new("UICorner")
   KnobCorner.CornerRadius = UDim.new(1, 0)
   KnobCorner.Parent = Knob
 
-  -- Invisible touch zone around the slider.
   local TouchZone = Instance.new("TextButton")
   TouchZone.Size = UDim2.new(1, 0, 0, 42)
   TouchZone.Position = UDim2.new(0, 0, 0.5, -21)
@@ -395,7 +407,8 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   TouchZone.BorderSizePixel = 0
   TouchZone.Text = ""
   TouchZone.AutoButtonColor = false
-  TouchZone.ZIndex = 10
+  TouchZone.Active = true
+  TouchZone.ZIndex = 109
   TouchZone.Parent = Slider
 
   local dragging = false
