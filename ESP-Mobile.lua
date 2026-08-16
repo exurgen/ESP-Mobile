@@ -8,6 +8,7 @@ local WindUI = loadstring(game:HttpGet(
   "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
 ))()
 
+-- limits
 local MIN_DISTANCE = 50
 local MAX_DISTANCE = 2000
 local DEFAULT_DISTANCE = 1000
@@ -20,6 +21,8 @@ local MIN_DISTANCE_SIZE = 6
 local MAX_DISTANCE_SIZE = 18
 local DEFAULT_DISTANCE_SIZE = 10
 
+local MIN_UPDATE_INTERVAL = 0.05
+
 local Colors = {
   EnemyVisible = Color3.fromRGB(70, 255, 100),
   EnemyHidden = Color3.fromRGB(255, 60, 60),
@@ -29,18 +32,22 @@ local Colors = {
 
 local Settings = {
   ESP = true,
-  ShowDistance = true,
-  VisibilityCheck = true,
-  TeamCheck = true,
   Highlight = true,
   Boxes = true,
+  ShowName = true,
+  ShowDistance = true,
+  VisibilityCheck = true,
+  BodyPartRaycast = true,
+  TeamCheck = true,
 
   ESPDistance = DEFAULT_DISTANCE,
   HighlightDistance = DEFAULT_DISTANCE,
   BoxDistance = DEFAULT_DISTANCE,
 
   NameSize = DEFAULT_NAME_SIZE,
-  DistanceSize = DEFAULT_DISTANCE_SIZE
+  DistanceSize = DEFAULT_DISTANCE_SIZE,
+
+  RayOrigin = "Character"
 }
 
 local ESPObjects = {}
@@ -65,25 +72,24 @@ local BodyPartNames = {
   "Left Arm",
   "Right Arm",
   "Left Leg",
-  "Right Leg"
+  "Right Leg",
+  "HumanoidRootPart"
 }
 
+-- window
 local Window = WindUI:CreateWindow({
   Title = "PLAYER ESP",
   Icon = "eye",
   Author = "Mobile ESP",
   Folder = "PlayerESP",
-
   Size = UDim2.fromOffset(520, 440),
   MinSize = Vector2.new(360, 300),
   MaxSize = Vector2.new(800, 650),
-
   Theme = "Dark",
   Resizable = true,
   SideBarWidth = 180,
   HideSearchBar = true,
   ScrollBarEnabled = true,
-
   User = {
     Enabled = true,
     Anonymous = false
@@ -95,7 +101,6 @@ local Sections = {
     Title = "FEATURES",
     Opened = true
   }),
-
   Settings = Window:Section({
     Title = "SETTINGS",
     Opened = true
@@ -106,13 +111,19 @@ local Tabs = {
   ESP = Sections.Features:Tab({
     Title = "ESP",
     Icon = "eye",
-    Desc = "Player ESP"
+    Desc = "Main ESP features"
   }),
 
   Misc = Sections.Features:Tab({
     Title = "Misc",
     Icon = "sliders-horizontal",
-    Desc = "ESP appearance"
+    Desc = "Appearance settings"
+  }),
+
+  Detection = Sections.Features:Tab({
+    Title = "Detection",
+    Icon = "scan-search",
+    Desc = "Visibility and raycast"
   }),
 
   Settings = Sections.Settings:Tab({
@@ -122,15 +133,16 @@ local Tabs = {
   })
 }
 
+-- ESP
 Tabs.ESP:Paragraph({
   Title = "Player ESP",
-  Desc = "Display players through the world.",
+  Desc = "Control the main ESP elements.",
   Image = "eye",
   ImageSize = 20
 })
 
 local ESPSection = Tabs.ESP:Section({
-  Title = "ESP Features",
+  Title = "Elements",
   Icon = "scan",
   Opened = true,
   Box = true
@@ -147,7 +159,7 @@ ESPSection:Toggle({
 
 ESPSection:Toggle({
   Title = "Highlight",
-  Desc = "Highlight each visible body part separately",
+  Desc = "Highlight body parts separately",
   Value = Settings.Highlight,
   Callback = function(value)
     Settings.Highlight = value
@@ -156,7 +168,7 @@ ESPSection:Toggle({
 
 ESPSection:Toggle({
   Title = "2D Boxes",
-  Desc = "Show a rectangle around players",
+  Desc = "Draw a 2D rectangle around players",
   Value = Settings.Boxes,
   Callback = function(value)
     Settings.Boxes = value
@@ -164,49 +176,33 @@ ESPSection:Toggle({
 })
 
 ESPSection:Toggle({
+  Title = "Names",
+  Desc = "Show player names",
+  Value = Settings.ShowName,
+  Callback = function(value)
+    Settings.ShowName = value
+  end
+})
+
+ESPSection:Toggle({
   Title = "Distance",
-  Desc = "Show distance below player name",
+  Desc = "Show distance below names",
   Value = Settings.ShowDistance,
   Callback = function(value)
     Settings.ShowDistance = value
   end
 })
 
-ESPSection:Toggle({
-  Title = "Visibility Check",
-  Desc = "Check every body part from your character",
-  Value = Settings.VisibilityCheck,
-  Callback = function(value)
-    Settings.VisibilityCheck = value
-  end
-})
-
-ESPSection:Toggle({
-  Title = "Team Check",
-  Desc = "Use separate colors for teammates",
-  Value = Settings.TeamCheck,
-  Callback = function(value)
-    Settings.TeamCheck = value
-  end
-})
-
-Tabs.ESP:Paragraph({
-  Title = "Visibility",
-  Desc = "Visibility is calculated from your character to each body part. Highlight can show visible and hidden parts separately; 2D boxes do not use individual body-part visibility.",
-  Image = "info",
-  ImageSize = 18
-})
-
 local DistanceSection = Tabs.ESP:Section({
-  Title = "Distances",
+  Title = "Distance",
   Icon = "maximize",
   Opened = true,
   Box = true
 })
 
 DistanceSection:Slider({
-  Title = "ESP Distance",
-  Desc = "Maximum distance for names",
+  Title = "Name / Distance",
+  Desc = "Maximum distance for ESP text",
   Value = {
     Min = MIN_DISTANCE,
     Max = MAX_DISTANCE,
@@ -246,9 +242,10 @@ DistanceSection:Slider({
   end
 })
 
+-- Misc
 Tabs.Misc:Paragraph({
   Title = "ESP Appearance",
-  Desc = "Configure player information.",
+  Desc = "Customize text and visual proportions.",
   Image = "paintbrush",
   ImageSize = 20
 })
@@ -262,7 +259,7 @@ local TextSection = Tabs.Misc:Section({
 
 TextSection:Slider({
   Title = "Name Size",
-  Desc = "Player name size",
+  Desc = "Size of player names",
   Value = {
     Min = MIN_NAME_SIZE,
     Max = MAX_NAME_SIZE,
@@ -276,7 +273,7 @@ TextSection:Slider({
 
 TextSection:Slider({
   Title = "Distance Text Size",
-  Desc = "Distance text size",
+  Desc = "Size of distance text",
   Value = {
     Min = MIN_DISTANCE_SIZE,
     Max = MAX_DISTANCE_SIZE,
@@ -288,6 +285,76 @@ TextSection:Slider({
   end
 })
 
+-- Detection
+Tabs.Detection:Paragraph({
+  Title = "Visibility Detection",
+  Desc = "Choose how walls and visible body parts are detected.",
+  Image = "scan-search",
+  ImageSize = 20
+})
+
+local DetectionSection = Tabs.Detection:Section({
+  Title = "Raycast",
+  Icon = "crosshair",
+  Opened = true,
+  Box = true
+})
+
+DetectionSection:Toggle({
+  Title = "Visibility Check",
+  Desc = "Check whether players are behind walls",
+  Value = Settings.VisibilityCheck,
+  Callback = function(value)
+    Settings.VisibilityCheck = value
+  end
+})
+
+DetectionSection:Toggle({
+  Title = "Body Part Raycasting",
+  Desc = "Check every body part separately",
+  Value = Settings.BodyPartRaycast,
+  Callback = function(value)
+    Settings.BodyPartRaycast = value
+  end
+})
+
+DetectionSection:Dropdown({
+  Title = "Raycast Origin",
+  Desc = "Where rays start from",
+  Values = {
+    "Character",
+    "Camera"
+  },
+  Value = Settings.RayOrigin,
+  Callback = function(value)
+    Settings.RayOrigin = value
+  end
+})
+
+Tabs.Detection:Paragraph({
+  Title = "Raycast Modes",
+  Desc = "Body Part Raycasting colors each body part separately. Normal mode checks the HumanoidRootPart. Character origin starts rays from your HumanoidRootPart; Camera origin starts them from the current camera.",
+  Image = "info",
+  ImageSize = 18
+})
+
+local TeamSection = Tabs.Detection:Section({
+  Title = "Teams",
+  Icon = "users",
+  Opened = true,
+  Box = true
+})
+
+TeamSection:Toggle({
+  Title = "Team Check",
+  Desc = "Use separate colors for teammates",
+  Value = Settings.TeamCheck,
+  Callback = function(value)
+    Settings.TeamCheck = value
+  end
+})
+
+-- Settings
 Tabs.Settings:Paragraph({
   Title = "Interface",
   Desc = "Customize the WindUI interface.",
@@ -310,37 +377,56 @@ end
 
 table.sort(Themes)
 
+local canchangetheme = true
+local canchangedropdown = true
+
 local ThemeDropdown = AppearanceSection:Dropdown({
   Title = "Theme",
   Desc = "Choose interface theme",
   Values = Themes,
-  Value = "Dark",
+  Flag = "ThemeDropdown",
   SearchBarEnabled = true,
   MenuWidth = 280,
+  Value = "Dark",
 
   Callback = function(theme)
-    if theme then
-      WindUI:SetTheme(theme)
+    canchangedropdown = false
+    WindUI:SetTheme(theme)
+
+    WindUI:Notify({
+      Title = "Theme Applied",
+      Content = theme,
+      Icon = "palette",
+      Duration = 2
+    })
+
+    canchangedropdown = true
+  end
+})
+
+local ThemeToggle = AppearanceSection:Toggle({
+  Title = "Dark Mode",
+  Desc = "Quickly switch between Dark and Light",
+  Value = true,
+
+  Callback = function(value)
+    if canchangetheme then
+      WindUI:SetTheme(value and "Dark" or "Light")
+    end
+
+    if canchangedropdown then
+      ThemeDropdown:Select(value and "Dark" or "Light")
     end
   end
 })
 
-AppearanceSection:Button({
-  Title = "Reset Theme",
-  Desc = "Return to Dark theme",
-  Icon = "rotate-ccw",
+WindUI:OnThemeChange(function(theme)
+  canchangetheme = false
+  ThemeToggle:Set(theme == "Dark")
+  canchangetheme = true
+end)
 
-  Callback = function()
-    WindUI:SetTheme("Dark")
-
-    if ThemeDropdown and ThemeDropdown.Select then
-      ThemeDropdown:Select("Dark")
-    end
-  end
-})
-
-Window:Open()
-
+-- overlay
 local ESPGui = Instance.new("ScreenGui")
 ESPGui.Name = "PlayerESPOverlay"
 ESPGui.ResetOnSpawn = false
@@ -348,6 +434,147 @@ ESPGui.IgnoreGuiInset = true
 ESPGui.DisplayOrder = 999999
 ESPGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ESPGui.Parent = PlayerGui
+
+-- helpers
+local function GetCharacter(player)
+  local Character = player.Character
+
+  if Character and Character.Parent then
+    return Character
+  end
+
+  return nil
+end
+
+local function GetRoot(character)
+  return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetBodyParts(character)
+  local Parts = {}
+
+  for _, PartName in ipairs(BodyPartNames) do
+    local Part = character:FindFirstChild(PartName)
+
+    if Part and Part:IsA("BasePart") then
+      table.insert(Parts, Part)
+    end
+  end
+
+  return Parts
+end
+
+local function IsTeamMate(player)
+  if not Settings.TeamCheck then
+    return false
+  end
+
+  return LocalPlayer.Team ~= nil
+    and player.Team ~= nil
+    and LocalPlayer.Team == player.Team
+end
+
+local function GetColor(player, visible)
+  if IsTeamMate(player) then
+    return visible
+      and Colors.TeamVisible
+      or Colors.TeamHidden
+  end
+
+  return visible
+    and Colors.EnemyVisible
+    or Colors.EnemyHidden
+end
+
+local function GetRayOrigin()
+  if Settings.RayOrigin == "Camera" then
+    local Camera = workspace.CurrentCamera
+
+    if Camera then
+      return Camera.CFrame.Position
+    end
+
+    return nil
+  end
+
+  local Character = LocalPlayer.Character
+  local Root = GetRoot(Character)
+
+  return Root and Root.Position
+end
+
+local RaycastParams = RaycastParams.new()
+RaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+RaycastParams.IgnoreWater = true
+
+local function IsPartVisible(character, part, origin)
+  if not part or not origin then
+    return false
+  end
+
+  local Direction = part.Position - origin
+
+  if Direction.Magnitude <= 0.01 then
+    return true
+  end
+
+  RaycastParams.FilterDescendantsInstances = {
+    LocalPlayer.Character,
+    character
+  }
+
+  local Result = workspace:Raycast(
+    origin,
+    Direction,
+    RaycastParams
+  )
+
+  return Result == nil
+end
+
+local function GetVisibility(character)
+  local Origin = GetRayOrigin()
+
+  if not Origin then
+    return false
+  end
+
+  local Parts = GetBodyParts(character)
+
+  if Settings.BodyPartRaycast then
+    local VisibleParts = {}
+    local AnyVisible = false
+
+    for _, Part in ipairs(Parts) do
+      local Visible = IsPartVisible(
+        character,
+        Part,
+        Origin
+      )
+
+      VisibleParts[Part] = Visible
+      AnyVisible = AnyVisible or Visible
+    end
+
+    return AnyVisible, VisibleParts
+  end
+
+  local Root = GetRoot(character)
+
+  if not Root then
+    return false, {}
+  end
+
+  local Visible = IsPartVisible(
+    character,
+    Root,
+    Origin
+  )
+
+  return Visible, {
+    [Root] = Visible
+  }
+end
 
 local function CreateBox()
   local Box = Instance.new("Frame")
@@ -360,137 +587,86 @@ local function CreateBox()
 
   local Stroke = Instance.new("UIStroke")
   Stroke.Thickness = 1.5
-  Stroke.Color = Colors.EnemyVisible
   Stroke.Parent = Box
 
-  return Box
-end
-
-local function FindCharacter(player)
-  local Character = player.Character
-
-  if Character and Character.Parent then
-    return Character
-  end
-
-  return nil
-end
-
-local function FindBodyParts(character)
-  local Parts = {}
-
-  for _, name in ipairs(BodyPartNames) do
-    local Part = character:FindFirstChild(name)
-
-    if Part and Part:IsA("BasePart") then
-      table.insert(Parts, Part)
-    end
-  end
-
-  if #Parts == 0 then
-    for _, object in ipairs(character:GetChildren()) do
-      if object:IsA("BasePart") then
-        table.insert(Parts, object)
-      end
-    end
-  end
-
-  return Parts
-end
-
-local function IsPartVisible(part, character)
-  if not Settings.VisibilityCheck then
-    return true
-  end
-
-  local MyCharacter = LocalPlayer.Character
-  local MyRoot = MyCharacter and
-    MyCharacter:FindFirstChild("HumanoidRootPart")
-
-  if not MyRoot or not part or not part.Parent then
-    return false
-  end
-
-  local Origin = MyRoot.Position
-  local Direction = part.Position - Origin
-
-  if Direction.Magnitude <= 0.01 then
-    return true
-  end
-
-  local Params = RaycastParams.new()
-  Params.FilterType = Enum.RaycastFilterType.Exclude
-  Params.FilterDescendantsInstances = {
-    MyCharacter,
-    character
-  }
-
-  return workspace:Raycast(
-    Origin,
-    Direction,
-    Params
-  ) == nil
-end
-
-local function GetPlayerColor(player, visible)
-  if Settings.TeamCheck and
-    LocalPlayer.Team ~= nil and
-    player.Team ~= nil and
-    LocalPlayer.Team == player.Team then
-
-    return visible
-      and Colors.TeamVisible
-      or Colors.TeamHidden
-  end
-
-  return visible
-    and Colors.EnemyVisible
-    or Colors.EnemyHidden
+  return Box, Stroke
 end
 
 local function CreatePartHighlight(part)
   local Highlight = Instance.new("Highlight")
-  Highlight.Name = "ESPPart"
+  Highlight.Name = "ESPPartHighlight"
   Highlight.Adornee = part
   Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
   Highlight.FillTransparency = 0.45
   Highlight.OutlineTransparency = 0
   Highlight.Enabled = false
+  Highlight.Parent = ESPGui
 
   return Highlight
 end
 
-local function AttachCharacter(player, character)
-  local Data = ESPObjects[player]
-
-  if not Data then
-    return
-  end
-
+local function BuildHighlights(Data, character)
   for _, Highlight in pairs(Data.Highlights) do
     Highlight:Destroy()
   end
 
   Data.Highlights = {}
-  Data.Character = character
 
-  local Humanoid = character:FindFirstChildOfClass("Humanoid")
-
-  if not Humanoid then
-    Humanoid = character:WaitForChild("Humanoid", 5)
-  end
-
-  if not Humanoid then
-    return
-  end
-
-  for _, Part in ipairs(FindBodyParts(character)) do
-    local Highlight = CreatePartHighlight(Part)
-    Highlight.Parent = character
-    Data.Highlights[Part] = Highlight
+  for _, Part in ipairs(GetBodyParts(character)) do
+    Data.Highlights[Part] = CreatePartHighlight(Part)
   end
 end
 
+local function GetScreenBounds(character)
+  local Camera = workspace.CurrentCamera
+
+  if not Camera then
+    return nil
+  end
+
+  local MinX = math.huge
+  local MinY = math.huge
+  local MaxX = -math.huge
+  local MaxY = -math.huge
+  local Found = false
+
+  for _, Part in ipairs(GetBodyParts(character)) do
+    local HalfSize = Part.Size / 2
+
+    for X = -1, 1, 2 do
+      for Y = -1, 1, 2 do
+        for Z = -1, 1, 2 do
+          local WorldPosition = Part.CFrame:PointToWorldSpace(
+            Vector3.new(
+              HalfSize.X * X,
+              HalfSize.Y * Y,
+              HalfSize.Z * Z
+            )
+          )
+
+          local ScreenPosition =
+            Camera:WorldToViewportPoint(WorldPosition)
+
+          if ScreenPosition.Z > 0 then
+            MinX = math.min(MinX, ScreenPosition.X)
+            MinY = math.min(MinY, ScreenPosition.Y)
+            MaxX = math.max(MaxX, ScreenPosition.X)
+            MaxY = math.max(MaxY, ScreenPosition.Y)
+            Found = true
+          end
+        end
+      end
+    end
+  end
+
+  if not Found then
+    return nil
+  end
+
+  return MinX, MinY, MaxX, MaxY
+end
+
+-- ESP creation
 local function CreateESP(player)
   if player == LocalPlayer or ESPObjects[player] then
     return
@@ -526,34 +702,53 @@ local function CreateESP(player)
   Distance.TextStrokeTransparency = 0.5
   Distance.Parent = Billboard
 
+  local Box, BoxStroke = CreateBox()
+
   local Data = {
     Billboard = Billboard,
     Name = Name,
     Distance = Distance,
+    Box = Box,
+    BoxStroke = BoxStroke,
     Highlights = {},
-    Box = CreateBox(),
     Character = nil,
-    Connection = nil
+    Connection = nil,
+    HighlightDistanceState = false
   }
 
   ESPObjects[player] = Data
 
-  local function CharacterAdded(character)
-    task.spawn(function()
-      character:WaitForChild("Humanoid", 5)
-      character:WaitForChild("HumanoidRootPart", 5)
+  local function Attach(character)
+    local CurrentData = ESPObjects[player]
 
-      if ESPObjects[player] then
-        AttachCharacter(player, character)
-      end
-    end)
+    if not CurrentData then
+      return
+    end
+
+    CurrentData.Character = character
+    CurrentData.HighlightDistanceState = false
+
+    CurrentData.Billboard.Adornee =
+      character:FindFirstChild("HumanoidRootPart")
+
+    for _, Highlight in pairs(CurrentData.Highlights) do
+      Highlight:Destroy()
+    end
+
+    CurrentData.Highlights = {}
   end
 
   if player.Character then
-    CharacterAdded(player.Character)
+    task.spawn(Attach, player.Character)
   end
 
-  Data.Connection = player.CharacterAdded:Connect(CharacterAdded)
+  Data.Connection = player.CharacterAdded:Connect(function(character)
+    task.wait(0.1)
+
+    if ESPObjects[player] then
+      Attach(character)
+    end
+  end)
 end
 
 local function RemoveESP(player)
@@ -582,13 +777,107 @@ local function RemoveESP(player)
   ESPObjects[player] = nil
 end
 
-local function UpdateHighlights(player, Data, character, distance)
-  local Enabled =
+local function UpdateHighlight(player, Data, character, distance)
+  local Active =
     Settings.ESP and
     Settings.Highlight and
     distance <= Settings.HighlightDistance
 
-  if not Enabled then
+  if not Active then
+    for _, Highlight in pairs(Data.Highlights) do
+      Highlight.Enabled = false
+    end
+
+    Data.HighlightDistanceState = false
+    return
+  end
+
+  if not Data.HighlightDistanceState
+    or next(Data.Highlights) == nil then
+
+    BuildHighlights(Data, character)
+    Data.HighlightDistanceState = true
+  end
+
+  local AnyVisible, VisibleParts =
+    GetVisibility(character)
+
+  for Part, Highlight in pairs(Data.Highlights) do
+    if Part and Part.Parent then
+      local Visible
+
+      if Settings.VisibilityCheck then
+        if Settings.BodyPartRaycast then
+          Visible = VisibleParts[Part] == true
+        else
+          Visible = AnyVisible
+        end
+      else
+        Visible = true
+      end
+
+      local Color = GetColor(
+        player,
+        Visible
+      )
+
+      Highlight.FillColor = Color
+      Highlight.OutlineColor = Color
+      Highlight.Enabled = true
+    else
+      Highlight.Enabled = false
+    end
+  end
+
+  Data.LastVisibility = AnyVisible
+end
+
+local function UpdateBox(player, Data, character, distance)
+  if not Settings.ESP
+    or not Settings.Boxes
+    or distance > Settings.BoxDistance then
+
+    Data.Box.Visible = false
+    return
+  end
+
+  local MinX, MinY, MaxX, MaxY =
+    GetScreenBounds(character)
+
+  if not MinX then
+    Data.Box.Visible = false
+    return
+  end
+
+  local Visible = Data.LastVisibility
+
+  if Visible == nil then
+    Visible = true
+  end
+
+  Data.BoxStroke.Color = GetColor(
+    player,
+    Visible
+  )
+
+  Data.Box.Position = UDim2.fromOffset(
+    MinX,
+    MinY
+  )
+
+  Data.Box.Size = UDim2.fromOffset(
+    math.max(MaxX - MinX, 2),
+    math.max(MaxY - MinY, 2)
+  )
+
+  Data.Box.Visible = true
+end
+
+local function UpdateESP(player, Data)
+  if not Settings.ESP then
+    Data.Billboard.Enabled = false
+    Data.Box.Visible = false
+
     for _, Highlight in pairs(Data.Highlights) do
       Highlight.Enabled = false
     end
@@ -596,110 +885,7 @@ local function UpdateHighlights(player, Data, character, distance)
     return
   end
 
-  for Part, Highlight in pairs(Data.Highlights) do
-    if Part and Part.Parent then
-      local Visible = IsPartVisible(Part, character)
-      local Color = GetPlayerColor(player, Visible)
-
-      Highlight.Enabled = true
-      Highlight.FillColor = Color
-      Highlight.OutlineColor = Color
-    else
-      Highlight.Enabled = false
-    end
-  end
-end
-
-local function UpdateBox(player, Data, character, distance)
-  local Box = Data.Box
-
-  if not Settings.ESP or
-    not Settings.Boxes or
-    distance > Settings.BoxDistance then
-
-    Box.Visible = false
-    return
-  end
-
-  local Camera = workspace.CurrentCamera
-
-  if not Camera then
-    Box.Visible = false
-    return
-  end
-
-  local Parts = FindBodyParts(character)
-
-  if #Parts == 0 then
-    Box.Visible = false
-    return
-  end
-
-  local MinX = math.huge
-  local MinY = math.huge
-  local MaxX = -math.huge
-  local MaxY = -math.huge
-  local Found = false
-
-  for _, Part in ipairs(Parts) do
-    local Half = Part.Size / 2
-
-    local Corners = {
-      Vector3.new(-Half.X, -Half.Y, -Half.Z),
-      Vector3.new(-Half.X, -Half.Y, Half.Z),
-      Vector3.new(-Half.X, Half.Y, -Half.Z),
-      Vector3.new(-Half.X, Half.Y, Half.Z),
-      Vector3.new(Half.X, -Half.Y, -Half.Z),
-      Vector3.new(Half.X, -Half.Y, Half.Z),
-      Vector3.new(Half.X, Half.Y, -Half.Z),
-      Vector3.new(Half.X, Half.Y, Half.Z)
-    }
-
-    for _, Corner in ipairs(Corners) do
-      local WorldPosition = Part.CFrame:PointToWorldSpace(Corner)
-      local ScreenPosition, OnScreen =
-        Camera:WorldToViewportPoint(WorldPosition)
-
-      if ScreenPosition.Z > 0 then
-        MinX = math.min(MinX, ScreenPosition.X)
-        MinY = math.min(MinY, ScreenPosition.Y)
-        MaxX = math.max(MaxX, ScreenPosition.X)
-        MaxY = math.max(MaxY, ScreenPosition.Y)
-        Found = Found or OnScreen
-      end
-    end
-  end
-
-  if not Found or MinX == math.huge then
-    Box.Visible = false
-    return
-  end
-
-  local Color = GetPlayerColor(
-    player,
-    IsPartVisible(
-      character:FindFirstChild("HumanoidRootPart") or Parts[1],
-      character
-    )
-  )
-
-  local Stroke = Box:FindFirstChildOfClass("UIStroke")
-
-  if Stroke then
-    Stroke.Color = Color
-  end
-
-  Box.Position = UDim2.fromOffset(MinX, MinY)
-  Box.Size = UDim2.fromOffset(
-    math.max(MaxX - MinX, 2),
-    math.max(MaxY - MinY, 2)
-  )
-
-  Box.Visible = true
-end
-
-local function UpdateESP(player, Data)
-  local Character = FindCharacter(player)
+  local Character = GetCharacter(player)
 
   if not Character then
     Data.Billboard.Enabled = false
@@ -713,23 +899,37 @@ local function UpdateESP(player, Data)
   end
 
   if Data.Character ~= Character then
-    AttachCharacter(player, Character)
+    Data.Character = Character
+    Data.HighlightDistanceState = false
+    Data.LastVisibility = nil
+
+    for _, Highlight in pairs(Data.Highlights) do
+      Highlight:Destroy()
+    end
+
+    Data.Highlights = {}
+
+    local Root = GetRoot(Character)
+
+    if Root then
+      Data.Billboard.Adornee = Root
+    end
   end
 
   local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-  local Root = Character:FindFirstChild("HumanoidRootPart")
+  local Root = GetRoot(Character)
+  local MyRoot = GetRoot(LocalPlayer.Character)
 
-  if not Humanoid or not Root or Humanoid.Health <= 0 then
+  if not Humanoid or not Root or not MyRoot
+    or Humanoid.Health <= 0 then
+
     Data.Billboard.Enabled = false
     Data.Box.Visible = false
-    return
-  end
 
-  local MyCharacter = LocalPlayer.Character
-  local MyRoot = MyCharacter and
-    MyCharacter:FindFirstChild("HumanoidRootPart")
+    for _, Highlight in pairs(Data.Highlights) do
+      Highlight.Enabled = false
+    end
 
-  if not MyRoot then
     return
   end
 
@@ -737,23 +937,24 @@ local function UpdateESP(player, Data)
     MyRoot.Position - Root.Position
   ).Magnitude
 
-  if Settings.ESP and Distance <= Settings.ESPDistance then
+  if Distance <= Settings.ESPDistance then
     Data.Billboard.Enabled = true
+
+    Data.Name.Visible = Settings.ShowName
+    Data.Distance.Visible = Settings.ShowDistance
+
     Data.Name.TextSize = Settings.NameSize
     Data.Distance.TextSize = Settings.DistanceSize
 
     if Settings.ShowDistance then
-      Data.Distance.Visible = true
       Data.Distance.Text =
         math.floor(Distance) .. " studs"
-    else
-      Data.Distance.Visible = false
     end
   else
     Data.Billboard.Enabled = false
   end
 
-  UpdateHighlights(
+  UpdateHighlight(
     player,
     Data,
     Character,
@@ -768,6 +969,7 @@ local function UpdateESP(player, Data)
   )
 end
 
+-- players
 for _, player in ipairs(Players:GetPlayers()) do
   if player ~= LocalPlayer then
     CreateESP(player)
@@ -780,26 +982,15 @@ Players.PlayerAdded:Connect(function(player)
   end
 end)
 
-Players.PlayerRemoving:Connect(function(player)
-  RemoveESP(player)
-end)
+Players.PlayerRemoving:Connect(RemoveESP)
 
-LocalPlayer.CharacterAdded:Connect(function()
-  task.wait(0.2)
-
-  for player, Data in pairs(ESPObjects) do
-    if player.Parent == Players then
-      UpdateESP(player, Data)
-    end
-  end
-end)
-
+-- loop
 local Timer = 0
 
 RunService.RenderStepped:Connect(function(delta)
   Timer += delta
 
-  if Timer < 0.05 then
+  if Timer < MIN_UPDATE_INTERVAL then
     return
   end
 
@@ -810,6 +1001,12 @@ RunService.RenderStepped:Connect(function(delta)
       UpdateESP(player, Data)
     else
       RemoveESP(player)
+    end
+  end
+
+  for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer and not ESPObjects[player] then
+      CreateESP(player)
     end
   end
 end)
