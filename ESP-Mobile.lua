@@ -49,7 +49,10 @@ local Settings = {
   ESPDistance = DEFAULT_DISTANCE,
   NameSize = DEFAULT_NAME_SIZE,
   DistanceSize = DEFAULT_DISTANCE_SIZE,
-  IconSize = DEFAULT_ICON_SIZE
+  IconSize = DEFAULT_ICON_SIZE,
+
+  MenuWidth = DEFAULT_MENU_WIDTH,
+  MenuHeight = DEFAULT_MENU_HEIGHT
 }
 
 --gui
