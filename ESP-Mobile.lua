@@ -63,6 +63,9 @@ ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = PlayerGui
 
+local MenuWidth = Settings.MenuWidth
+local MenuHeight = Settings.MenuHeight
+
 local Container = Instance.new("Frame")
 Container.Name = "MainElement"
 Container.Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
@@ -459,7 +462,6 @@ CreateSlider("Icon Size", MIN_ICON_SIZE, MAX_ICON_SIZE,
 
 --resize
 local ResizeHandles = {}
-local HANDLE_SIZE = 18
 
 local function CreateResizeHandle(name, position, anchor, rotation)
   local Handle = Instance.new("Frame")
@@ -542,12 +544,11 @@ local function Resize(input)
   if not ResizeData or not MenuOpen then return end
 
   local delta = input.Position - ResizeData.StartTouch
-  local corner = ResizeData.Corner
-
   local width = ResizeData.StartWidth
   local height = ResizeData.StartHeight
   local x = ResizeData.StartPosition.X.Offset
   local y = ResizeData.StartPosition.Y.Offset
+  local corner = ResizeData.Corner
 
   if corner == "BR" then
     width += delta.X
@@ -583,6 +584,8 @@ local function Resize(input)
 
   MenuWidth = width
   MenuHeight = height
+  Settings.MenuWidth = width
+  Settings.MenuHeight = height
 
   Container.Size = UDim2.fromOffset(width, height)
   Container.Position = UDim2.new(
@@ -681,17 +684,8 @@ ConnectDrag(TopBar, function()
 end)
 
 --animation
-local OpenInfo = TweenInfo.new(
-  0.32,
-  Enum.EasingStyle.Quint,
-  Enum.EasingDirection.Out
-)
-
-local CloseInfo = TweenInfo.new(
-  0.27,
-  Enum.EasingStyle.Quint,
-  Enum.EasingDirection.In
-)
+local OpenInfo = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local CloseInfo = TweenInfo.new(0.27, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 
 local AnimatedElements = {
   Title,
@@ -717,10 +711,13 @@ local function OpenMenu()
   Menu.Visible = true
   SetResizeVisible(true)
 
-  Container.Size = UDim2.fromOffset(
-    Settings.IconSize,
-    Settings.IconSize
-  )
+  MenuWidth = math.clamp(MenuWidth, MIN_MENU_WIDTH, MAX_MENU_WIDTH)
+  MenuHeight = math.clamp(MenuHeight, MIN_MENU_HEIGHT, MAX_MENU_HEIGHT)
+
+  Settings.MenuWidth = MenuWidth
+  Settings.MenuHeight = MenuHeight
+
+  Container.Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
 
   TweenService:Create(Container, OpenInfo, {
     Size = UDim2.fromOffset(MenuWidth, MenuHeight)
@@ -735,7 +732,6 @@ local function OpenMenu()
       position.Y.Scale,
       position.Y.Offset - 35
     )
-
     object.Visible = true
   end
 
@@ -764,7 +760,6 @@ local function CloseMenu()
   if not MenuOpen or Animating then return end
 
   Animating = true
-
   SetResizeVisible(false)
 
   for index, object in ipairs(AnimatedElements) do
@@ -789,10 +784,7 @@ local function CloseMenu()
   task.wait(0.18)
 
   TweenService:Create(Container, CloseInfo, {
-    Size = UDim2.fromOffset(
-      Settings.IconSize,
-      Settings.IconSize
-    )
+    Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
   }):Play()
 
   task.wait(0.27)
