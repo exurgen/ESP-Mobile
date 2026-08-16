@@ -682,13 +682,12 @@ end
 local IconDragZone = Instance.new("TextButton")
 IconDragZone.Name = "IconDragZone"
 IconDragZone.Size = UDim2.fromOffset(70, 70)
-IconDragZone.Position = UDim2.new(0.5, -35, 0.5, -35)
 IconDragZone.BackgroundTransparency = 1
 IconDragZone.BorderSizePixel = 0
 IconDragZone.Text = ""
 IconDragZone.AutoButtonColor = false
 IconDragZone.Active = true
-IconDragZone.ZIndex = 10
+IconDragZone.ZIndex = 1
 IconDragZone.Parent = ScreenGui
 
 local MenuDragZone = Instance.new("TextButton")
@@ -704,17 +703,8 @@ MenuDragZone.Visible = false
 MenuDragZone.ZIndex = 10
 MenuDragZone.Parent = Menu
 
-local function UpdateDragZone()
-  IconDragZone.Position = UDim2.new(
-    Container.Position.X.Scale,
-    Container.Position.X.Offset + Container.AbsoluteSize.X / 2 - 35,
-    Container.Position.Y.Scale,
-    Container.Position.Y.Offset + Container.AbsoluteSize.Y / 2 - 35
-  )
-
-  IconDragZone.Visible = not MenuOpen
-  MenuDragZone.Visible = MenuOpen
-end
+-- Keep the icon above the invisible drag zone.
+Container.ZIndex = 5
 
 IconDragZone.InputBegan:Connect(function(input)
   if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
@@ -737,6 +727,18 @@ end)
 UserInputService.TouchEnded:Connect(function()
   EndDrag()
 end)
+
+local function UpdateDragZone()
+  IconDragZone.Position = UDim2.new(
+    Container.Position.X.Scale,
+    Container.Position.X.Offset + Container.AbsoluteSize.X / 2 - 35,
+    Container.Position.Y.Scale,
+    Container.Position.Y.Offset + Container.AbsoluteSize.Y / 2 - 35
+  )
+
+  IconDragZone.Visible = not MenuOpen
+  MenuDragZone.Visible = MenuOpen
+end
 
 Container:GetPropertyChangedSignal("Position"):Connect(UpdateDragZone)
 Container:GetPropertyChangedSignal("Size"):Connect(UpdateDragZone)
