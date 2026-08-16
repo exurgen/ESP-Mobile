@@ -73,7 +73,7 @@ Container.Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
 Container.Position = UDim2.new(0.5, -Settings.IconSize / 2, 0.5, -Settings.IconSize / 2)
 Container.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Container.BorderSizePixel = 0
-Container.ClipsDescendants = true
+Container.ClipsDescendants = false
 Container.Active = true
 Container.ZIndex = 100
 Container.Parent = ScreenGui
@@ -87,6 +87,19 @@ ContainerStroke.Parent = Container
 local ContainerCorner = Instance.new("UICorner")
 ContainerCorner.CornerRadius = UDim.new(0, 15)
 ContainerCorner.Parent = Container
+
+local IconDragZone = Instance.new("TextButton")
+IconDragZone.Name = "IconDragZone"
+IconDragZone.Size = UDim2.fromOffset(70, 70)
+IconDragZone.Position = UDim2.fromScale(0.5, 0.5)
+IconDragZone.AnchorPoint = Vector2.new(0.5, 0.5)
+IconDragZone.BackgroundTransparency = 1
+IconDragZone.BorderSizePixel = 0
+IconDragZone.Text = ""
+IconDragZone.AutoButtonColor = false
+IconDragZone.Active = true
+IconDragZone.ZIndex = 105
+IconDragZone.Parent = Container
 
 local IconButton = Instance.new("TextButton")
 IconButton.Name = "Icon"
@@ -675,13 +688,12 @@ end)
 local UserInputService = game:GetService("UserInputService")
 
 local Dragging = false
+local DragMoved = false
+local DragInput
 local DragStart
 local DragPosition
-local DragInput
-local DragMoved = false
 
 local DRAG_THRESHOLD = 10
-local ICON_TOUCH_SIZE = 70
 
 local function BeginDrag(input)
   if ResizeData then return end
@@ -694,7 +706,7 @@ local function BeginDrag(input)
 end
 
 local function MoveDrag(input)
-  if not Dragging or ResizeData or input ~= DragInput then return end
+  if not Dragging or input ~= DragInput or ResizeData then return end
 
   local currentPosition = Vector2.new(input.Position.X, input.Position.Y)
   local delta = currentPosition - DragStart
@@ -714,44 +726,45 @@ end
 local function EndDrag(input)
   if not Dragging or input ~= DragInput then return end
 
-  local wasMoved = DragMoved
+  local shouldOpen = not DragMoved and not MenuOpen
 
   Dragging = false
   DragMoved = false
   DragInput = nil
 
-  if not MenuOpen and not wasMoved then
+  if shouldOpen then
     OpenMenu()
   end
 end
 
--- Invisible enlarged touch zone for the icon.
-local IconHitbox = Instance.new("TextButton")
-IconHitbox.Name = "IconHitbox"
-IconHitbox.Size = UDim2.fromOffset(ICON_TOUCH_SIZE, ICON_TOUCH_SIZE)
-IconHitbox.BackgroundTransparency = 1
-IconHitbox.BorderSizePixel = 0
-IconHitbox.Text = ""
-IconHitbox.AutoButtonColor = false
-IconHitbox.Active = true
-IconHitbox.ZIndex = 130
-IconHitbox.Parent = ScreenGui
+local MenuDragZone = Instance.new("TextButton")
+MenuDragZone.Name = "MenuDragZone"
+MenuDragZone.Size = UDim2.new(1, -65, 0, 60)
+MenuDragZone.Position = UDim2.fromOffset(10, 0)
+MenuDragZone.BackgroundTransparency = 1
+MenuDragZone.BorderSizePixel = 0
+MenuDragZone.Text = ""
+MenuDragZone.AutoButtonColor = false
+MenuDragZone.Active = true
+MenuDragZone.Visible = false
+MenuDragZone.ZIndex = 115
+MenuDragZone.Parent = Menu
 
-local function UpdateIconHitbox()
-  local position = Container.AbsolutePosition
-  local size = Container.AbsoluteSize
-  local hitboxSize = math.max(ICON_TOUCH_SIZE, size.X + 24, size.Y + 24)
-
-  IconHitbox.Size = UDim2.fromOffset(hitboxSize, hitboxSize)
-  IconHitbox.Position = UDim2.fromOffset(
-    position.X + size.X / 2 - hitboxSize / 2,
-    position.Y + size.Y / 2 - hitboxSize / 2
-  )
-  IconHitbox.Visible = not MenuOpen
-end
-
-IconHitbox.InputBegan:Connect(function(input)
+-- Both the visible button and enlarged area can start the same drag.
+IconButton.InputBegan:Connect(function(input)
   if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
+    BeginDrag(input)
+  end
+end)
+
+IconDragZone.InputBegan:Connect(function(input)
+  if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
+    BeginDrag(input)
+  end
+end)
+
+MenuDragZone.InputBegan:Connect(function(input)
+  if input.UserInputType == Enum.UserInputType.Touch and MenuOpen then
     BeginDrag(input)
   end
 end)
@@ -767,40 +780,16 @@ end)
 UserInputService.TouchEnded:Connect(function(input)
   EndDrag(input)
 
-  if ResizeData then
+  if ResizeData and input == ResizeData.Input then
     EndResize()
   end
 end)
 
--- Invisible enlarged touch zone for dragging the menu.
-local MenuDragZone = Instance.new("TextButton")
-MenuDragZone.Name = "MenuDragZone"
-MenuDragZone.Size = UDim2.new(1, -65, 0, 60)
-MenuDragZone.Position = UDim2.fromOffset(10, 0)
-MenuDragZone.BackgroundTransparency = 1
-MenuDragZone.BorderSizePixel = 0
-MenuDragZone.Text = ""
-MenuDragZone.AutoButtonColor = false
-MenuDragZone.Active = true
-MenuDragZone.Visible = false
-MenuDragZone.ZIndex = 125
-MenuDragZone.Parent = Menu
-
-MenuDragZone.InputBegan:Connect(function(input)
-  if input.UserInputType == Enum.UserInputType.Touch and MenuOpen then
-    BeginDrag(input)
-  end
-end)
-
 local function UpdateDragZones()
-  IconHitbox.Visible = not MenuOpen
+  IconDragZone.Visible = not MenuOpen
   MenuDragZone.Visible = MenuOpen
 end
 
-Container:GetPropertyChangedSignal("AbsolutePosition"):Connect(UpdateIconHitbox)
-Container:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateIconHitbox)
-
-UpdateIconHitbox()
 UpdateDragZones()
 
 --animation
