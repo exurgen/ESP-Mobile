@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 -- windui
 local WindUI = loadstring(game:HttpGet(
@@ -51,21 +52,54 @@ local Window = WindUI:CreateWindow({
   Transparent = false
 })
 
--- tab
-local ESPTab = Window:Tab({
-  Title = "ESP",
-  Icon = "eye"
+local Sections = {
+  Features = Window:Section({
+    Title = "FEATURES",
+    Opened = true
+  }),
+
+  Settings = Window:Section({
+    Title = "SETTINGS",
+    Opened = true
+  })
+}
+
+-- tabs
+local Tabs = {
+  ESP = Sections.Features:Tab({
+    Title = "ESP",
+    Icon = "eye",
+    Desc = "Player ESP features"
+  }),
+
+  Misc = Sections.Features:Tab({
+    Title = "Misc",
+    Icon = "sliders-horizontal",
+    Desc = "ESP appearance"
+  }),
+
+  Settings = Sections.Settings:Tab({
+    Title = "Settings",
+    Icon = "settings",
+    Desc = "Interface settings"
+  })
+}
+
+-- esp
+Tabs.ESP:Paragraph({
+  Title = "Player ESP",
+  Desc = "Configure how players are displayed.",
+  Image = "eye",
+  ImageSize = 20
 })
 
--- section
-local ESPSection = ESPTab:Section({
-  Title = "ESP Settings",
-  Icon = "settings",
+local ESPSection = Tabs.ESP:Section({
+  Title = "ESP Features",
+  Icon = "scan",
   Opened = true,
   Box = true
 })
 
--- toggles
 ESPSection:Toggle({
   Title = "ESP",
   Desc = "Show players through the world",
@@ -86,7 +120,7 @@ ESPSection:Toggle({
 
 ESPSection:Toggle({
   Title = "Visibility Check",
-  Desc = "Green / red depending on walls",
+  Desc = "Change color depending on walls",
   Value = Settings.VisibilityCheck,
   Callback = function(value)
     Settings.VisibilityCheck = value
@@ -95,17 +129,23 @@ ESPSection:Toggle({
 
 ESPSection:Toggle({
   Title = "Team Check",
-  Desc = "Yellow / orange for teammates",
+  Desc = "Use different colors for teammates",
   Value = Settings.TeamCheck,
   Callback = function(value)
     Settings.TeamCheck = value
   end
 })
 
-ESPSection:Divider()
+Tabs.ESP:Divider()
 
--- sliders
-ESPSection:Slider({
+local DistanceSection = Tabs.ESP:Section({
+  Title = "Distance",
+  Icon = "maximize",
+  Opened = true,
+  Box = true
+})
+
+DistanceSection:Slider({
   Title = "ESP Distance",
   Desc = "Maximum distance for ESP",
   Value = {
@@ -119,9 +159,24 @@ ESPSection:Slider({
   end
 })
 
-ESPSection:Slider({
+-- misc
+Tabs.Misc:Paragraph({
+  Title = "ESP Appearance",
+  Desc = "Customize the appearance of player information.",
+  Image = "paintbrush",
+  ImageSize = 20
+})
+
+local TextSection = Tabs.Misc:Section({
+  Title = "Text",
+  Icon = "type",
+  Opened = true,
+  Box = true
+})
+
+TextSection:Slider({
   Title = "Name Size",
-  Desc = "Player name text size",
+  Desc = "Size of player names",
   Value = {
     Min = MIN_NAME_SIZE,
     Max = MAX_NAME_SIZE,
@@ -133,9 +188,9 @@ ESPSection:Slider({
   end
 })
 
-ESPSection:Slider({
+TextSection:Slider({
   Title = "Distance Text Size",
-  Desc = "Distance text size",
+  Desc = "Size of distance text",
   Value = {
     Min = MIN_DISTANCE_SIZE,
     Max = MAX_DISTANCE_SIZE,
@@ -144,6 +199,72 @@ ESPSection:Slider({
   Step = 1,
   Callback = function(value)
     Settings.DistanceSize = value
+  end
+})
+
+-- settings
+Tabs.Settings:Paragraph({
+  Title = "Interface",
+  Desc = "Customize the appearance of the ESP menu.",
+  Image = "palette",
+  ImageSize = 20
+})
+
+local AppearanceSection = Tabs.Settings:Section({
+  Title = "Appearance",
+  Icon = "palette",
+  Opened = true,
+  Box = true
+})
+
+local Themes = {}
+
+for ThemeName in pairs(WindUI:GetThemes()) do
+  table.insert(Themes, ThemeName)
+end
+
+table.sort(Themes)
+
+local ThemeDropdown = AppearanceSection:Dropdown({
+  Title = "Theme",
+  Desc = "Choose an interface theme",
+  Values = Themes,
+  Value = "Dark",
+  SearchBarEnabled = true,
+  MenuWidth = 280,
+
+  Callback = function(theme)
+    WindUI:SetTheme(theme)
+
+    WindUI:Notify({
+      Title = "Theme Changed",
+      Content = "Applied: " .. theme,
+      Icon = "palette",
+      Duration = 2
+    })
+  end
+})
+
+WindUI:OnThemeChange(function(theme)
+  ThemeDropdown:Select(theme)
+end)
+
+AppearanceSection:Divider()
+
+AppearanceSection:Button({
+  Title = "Reset Theme",
+  Desc = "Return to the default dark theme",
+  Icon = "rotate-ccw",
+
+  Callback = function()
+    WindUI:SetTheme("Dark")
+
+    WindUI:Notify({
+      Title = "Theme Reset",
+      Content = "Dark theme applied",
+      Icon = "check",
+      Duration = 2
+    })
   end
 })
 
@@ -223,7 +344,7 @@ local function CreateESP(player)
   Billboard.AlwaysOnTop = true
   Billboard.MaxDistance = MAX_DISTANCE
   Billboard.Enabled = false
-  Billboard.Parent = LocalPlayer:WaitForChild("PlayerGui")
+  Billboard.Parent = PlayerGui
 
   local Name = Instance.new("TextLabel")
   Name.Name = "Name"
@@ -372,7 +493,7 @@ end)
 
 Players.PlayerRemoving:Connect(RemoveESP)
 
--- update loop
+-- loop
 local Timer = 0
 
 RunService.RenderStepped:Connect(function(delta)
