@@ -225,28 +225,43 @@ end
 
 table.sort(Themes)
 
-local ThemeDropdown = AppearanceSection:Dropdown({
+local UpdatingTheme = false
+
+local ThemeDropdown = SettingsTab:Dropdown({
   Title = "Theme",
-  Desc = "Choose an interface theme",
+  Desc = "Choose the interface theme",
   Values = Themes,
-  Value = "Dark",
-  SearchBarEnabled = true,
-  MenuWidth = 280,
+  Value = WindUI:GetCurrentTheme(),
+  Multi = false,
+  AllowNone = false,
 
-  Callback = function(theme)
-    WindUI:SetTheme(theme)
+  Callback = function(Theme)
+    if UpdatingTheme or not Theme then
+      return
+    end
 
-    WindUI:Notify({
-      Title = "Theme Changed",
-      Content = "Applied: " .. theme,
-      Icon = "palette",
-      Duration = 2
-    })
+    UpdatingTheme = true
+
+    WindUI:SetTheme(Theme)
+
+    task.defer(function()
+      UpdatingTheme = false
+    end)
   end
 })
 
-WindUI:OnThemeChange(function(theme)
-  ThemeDropdown:Select(theme)
+WindUI:OnThemeChange(function(Theme)
+  if UpdatingTheme then
+    return
+  end
+
+  UpdatingTheme = true
+
+  ThemeDropdown:Select(Theme)
+
+  task.defer(function()
+    UpdatingTheme = false
+  end)
 end)
 
 AppearanceSection:Divider()
