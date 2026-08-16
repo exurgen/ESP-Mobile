@@ -294,6 +294,8 @@ CreateToggle("Visibility Check", "Green / red depending on walls", "VisibilityCh
 CreateToggle("Team Check", "Yellow / orange for teammates", "TeamCheck")
 
 --sliders
+local UserInputService = game:GetService("UserInputService")
+
 local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffix)
   local Frame = Instance.new("Frame")
   Frame.Size = UDim2.new(1, -3, 0, 82)
@@ -374,6 +376,17 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
   KnobCorner.CornerRadius = UDim.new(1, 0)
   KnobCorner.Parent = Knob
 
+  -- Invisible touch zone around the slider.
+  local TouchZone = Instance.new("TextButton")
+  TouchZone.Size = UDim2.new(1, 0, 0, 42)
+  TouchZone.Position = UDim2.new(0, 0, 0.5, -21)
+  TouchZone.BackgroundTransparency = 1
+  TouchZone.BorderSizePixel = 0
+  TouchZone.Text = ""
+  TouchZone.AutoButtonColor = false
+  TouchZone.ZIndex = 10
+  TouchZone.Parent = Slider
+
   local dragging = false
 
   local function Update(value)
@@ -381,7 +394,6 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
     setValue(value)
 
     local alpha = (value - minValue) / (maxValue - minValue)
-
     Fill.Size = UDim2.new(alpha, 0, 1, 0)
     Knob.Position = UDim2.new(alpha, 0, 0.5, 0)
     ValueLabel.Text = tostring(value) .. suffix
@@ -391,26 +403,25 @@ local function CreateSlider(title, minValue, maxValue, getValue, setValue, suffi
     local left = Slider.AbsolutePosition.X
     local width = Slider.AbsoluteSize.X
     local alpha = math.clamp((x - left) / width, 0, 1)
+
     Update(minValue + (maxValue - minValue) * alpha)
   end
 
-  Slider.InputBegan:Connect(function(input)
+  TouchZone.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch then
       dragging = true
       FromTouch(input.Position.X)
     end
   end)
 
-  Slider.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.Touch then
+  UserInputService.TouchMoved:Connect(function(input)
+    if dragging then
       FromTouch(input.Position.X)
     end
   end)
 
-  Slider.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-      dragging = false
-    end
+  UserInputService.TouchEnded:Connect(function()
+    dragging = false
   end)
 
   Update(getValue())
@@ -462,31 +473,59 @@ CreateSlider("Icon Size", MIN_ICON_SIZE, MAX_ICON_SIZE,
 
 --resize
 local ResizeHandles = {}
+local ResizeData
 
-local function CreateResizeHandle(name, position, anchor, rotation)
+local function CreateResizeHandle(name, position, anchor, corner)
   local Handle = Instance.new("Frame")
   Handle.Name = name
-  Handle.Size = UDim2.fromOffset(HANDLE_SIZE, HANDLE_SIZE)
+  Handle.Size = UDim2.fromOffset(42, 42)
   Handle.Position = position
   Handle.AnchorPoint = anchor
   Handle.BackgroundTransparency = 1
   Handle.Visible = false
+  Handle.Active = true
   Handle.ZIndex = 50
   Handle.Parent = Menu
 
+  -- Curved corner arc made from three small segments.
   local Arc = Instance.new("Frame")
-  Arc.Size = UDim2.fromOffset(10, 10)
-  Arc.Position = UDim2.fromOffset(4, 4)
-  Arc.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-  Arc.BackgroundTransparency = 0.55
+  Arc.Size = UDim2.fromOffset(26, 26)
+  Arc.Position = UDim2.fromOffset(8, 8)
+  Arc.BackgroundTransparency = 1
   Arc.BorderSizePixel = 0
-  Arc.Rotation = rotation
   Arc.ZIndex = 51
   Arc.Parent = Handle
 
-  local Corner = Instance.new("UICorner")
-  Corner.CornerRadius = UDim.new(1, 0)
-  Corner.Parent = Arc
+  local function CreateArcSegment(size, position, rotation)
+    local Segment = Instance.new("Frame")
+    Segment.Size = size
+    Segment.Position = position
+    Segment.AnchorPoint = Vector2.new(0.5, 0.5)
+    Segment.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Segment.BackgroundTransparency = 0.45
+    Segment.BorderSizePixel = 0
+    Segment.Rotation = rotation
+    Segment.ZIndex = 51
+    Segment.Parent = Arc
+
+    local SegmentCorner = Instance.new("UICorner")
+    SegmentCorner.CornerRadius = UDim.new(1, 0)
+    SegmentCorner.Parent = Segment
+  end
+
+  if corner == "TL" then
+    CreateArcSegment(UDim2.fromOffset(12, 3), UDim2.fromOffset(8, 2), 0)
+    CreateArcSegment(UDim2.fromOffset(12, 3), UDim2.fromOffset(2, 8), 90)
+    CreateArcSegment(UDim2.fromOffset(8, 3), UDim2.fromOffset(4, 4), 45)
+  elseif corner == "BL" then
+    CreateArcSegment(UDim2.fromOffset(12, 3), UDim2.fromOffset(8, 24), 0)
+    CreateArcSegment(UDim2.fromOffset(12, 3), UDim2.fromOffset(2, 18), 90)
+    CreateArcSegment(UDim2.fromOffset(8, 3), UDim2.fromOffset(4, 22), -45)
+  elseif corner == "BR" then
+    CreateArcSegment(UDim2.fromOffset(12, 3), UDim2.fromOffset(18, 24), 0)
+    CreateArcSegment(UDim2.fromOffset(12, 3), UDim2.fromOffset(24, 18), 90)
+    CreateArcSegment(UDim2.fromOffset(8, 3), UDim2.fromOffset(22, 22), 45)
+  end
 
   ResizeHandles[name] = Handle
   return Handle
@@ -494,30 +533,23 @@ end
 
 local ResizeTL = CreateResizeHandle(
   "ResizeTopLeft",
-  UDim2.fromOffset(4, 4),
+  UDim2.fromOffset(0, 0),
   Vector2.new(0, 0),
-  0
-)
-
-local ResizeTR = CreateResizeHandle(
-  "ResizeTopRight",
-  UDim2.new(1, -4, 0, 4),
-  Vector2.new(1, 0),
-  90
+  "TL"
 )
 
 local ResizeBL = CreateResizeHandle(
   "ResizeBottomLeft",
-  UDim2.new(0, 4, 1, -4),
+  UDim2.new(0, 0, 1, 0),
   Vector2.new(0, 1),
-  270
+  "BL"
 )
 
 local ResizeBR = CreateResizeHandle(
   "ResizeBottomRight",
-  UDim2.new(1, -4, 1, -4),
+  UDim2.new(1, 0, 1, 0),
   Vector2.new(1, 1),
-  180
+  "BR"
 )
 
 local function SetResizeVisible(value)
@@ -526,10 +558,8 @@ local function SetResizeVisible(value)
   end
 end
 
-local ResizeData
-
 local function BeginResize(corner, input)
-  if not MenuOpen then return end
+  if not MenuOpen or ResizeData then return end
 
   ResizeData = {
     Corner = corner,
@@ -557,10 +587,6 @@ local function Resize(input)
     width -= delta.X
     height += delta.Y
     x += delta.X
-  elseif corner == "TR" then
-    width += delta.X
-    height -= delta.Y
-    y += delta.Y
   elseif corner == "TL" then
     width -= delta.X
     height -= delta.Y
@@ -578,7 +604,7 @@ local function Resize(input)
     x += oldWidth - width
   end
 
-  if corner == "TL" or corner == "TR" then
+  if corner == "TL" then
     y += oldHeight - height
   end
 
@@ -606,24 +632,21 @@ local function SetupResizeHandle(handle, corner)
       BeginResize(corner, input)
     end
   end)
-
-  handle.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-      Resize(input)
-    end
-  end)
-
-  handle.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-      EndResize()
-    end
-  end)
 end
 
 SetupResizeHandle(ResizeTL, "TL")
-SetupResizeHandle(ResizeTR, "TR")
 SetupResizeHandle(ResizeBL, "BL")
 SetupResizeHandle(ResizeBR, "BR")
+
+UserInputService.TouchMoved:Connect(function(input)
+  if ResizeData then
+    Resize(input)
+  end
+end)
+
+UserInputService.TouchEnded:Connect(function()
+  EndResize()
+end)
 
 --drag
 local Dragging = false
@@ -655,33 +678,70 @@ local function EndDrag()
   Dragging = false
 end
 
-local function ConnectDrag(object, enabled)
-  object.InputBegan:Connect(function(input)
-    if enabled() and input.UserInputType == Enum.UserInputType.Touch then
-      BeginDrag(input)
-    end
-  end)
+-- Invisible enlarged touch zones.
+local IconDragZone = Instance.new("TextButton")
+IconDragZone.Name = "IconDragZone"
+IconDragZone.Size = UDim2.fromOffset(70, 70)
+IconDragZone.Position = UDim2.new(0.5, -35, 0.5, -35)
+IconDragZone.BackgroundTransparency = 1
+IconDragZone.BorderSizePixel = 0
+IconDragZone.Text = ""
+IconDragZone.AutoButtonColor = false
+IconDragZone.Active = true
+IconDragZone.ZIndex = 10
+IconDragZone.Parent = ScreenGui
 
-  object.InputChanged:Connect(function(input)
-    if enabled() and input.UserInputType == Enum.UserInputType.Touch then
-      MoveDrag(input)
-    end
-  end)
+local MenuDragZone = Instance.new("TextButton")
+MenuDragZone.Name = "MenuDragZone"
+MenuDragZone.Size = UDim2.new(1, -90, 0, 60)
+MenuDragZone.Position = UDim2.fromOffset(10, 0)
+MenuDragZone.BackgroundTransparency = 1
+MenuDragZone.BorderSizePixel = 0
+MenuDragZone.Text = ""
+MenuDragZone.AutoButtonColor = false
+MenuDragZone.Active = true
+MenuDragZone.Visible = false
+MenuDragZone.ZIndex = 10
+MenuDragZone.Parent = Menu
 
-  object.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-      EndDrag()
-    end
-  end)
+local function UpdateDragZone()
+  IconDragZone.Position = UDim2.new(
+    Container.Position.X.Scale,
+    Container.Position.X.Offset + Container.AbsoluteSize.X / 2 - 35,
+    Container.Position.Y.Scale,
+    Container.Position.Y.Offset + Container.AbsoluteSize.Y / 2 - 35
+  )
+
+  IconDragZone.Visible = not MenuOpen
+  MenuDragZone.Visible = MenuOpen
 end
 
-ConnectDrag(IconButton, function()
-  return not MenuOpen
+IconDragZone.InputBegan:Connect(function(input)
+  if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
+    BeginDrag(input)
+  end
 end)
 
-ConnectDrag(TopBar, function()
-  return MenuOpen
+MenuDragZone.InputBegan:Connect(function(input)
+  if input.UserInputType == Enum.UserInputType.Touch and MenuOpen then
+    BeginDrag(input)
+  end
 end)
+
+UserInputService.TouchMoved:Connect(function(input)
+  if Dragging then
+    MoveDrag(input)
+  end
+end)
+
+UserInputService.TouchEnded:Connect(function()
+  EndDrag()
+end)
+
+Container:GetPropertyChangedSignal("Position"):Connect(UpdateDragZone)
+Container:GetPropertyChangedSignal("Size"):Connect(UpdateDragZone)
+
+UpdateDragZone()
 
 --animation
 local OpenInfo = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
