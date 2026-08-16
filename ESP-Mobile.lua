@@ -1169,7 +1169,6 @@ ResetAllSection:Button({
 })
 
 Window:Open()
-Window:SelectTab(1)
 
 local ESPGui = Instance.new("ScreenGui")
 
