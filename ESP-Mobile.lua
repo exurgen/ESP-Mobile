@@ -312,14 +312,6 @@ AboutSection:Paragraph({
     ImageSize = 18
 })
 
-local UIControls = {
-  ESP = {},
-  Sides = {},
-  Detection = {},
-  Text = {},
-  Colors = {}
-}
-
 local ESPSection = Tabs.ESP:Section({
     Title = "Features",
     Icon = "scan",
@@ -381,28 +373,6 @@ ESPSection:Toggle({
     end
 })
 
-
-local BoxModeSection = Tabs.ESP:Section({
-    Title = "2D Box Mode",
-    Icon = "square",
-    Opened = true,
-    Box = true
-})
-
-BoxModeSection:Dropdown({
-    Title = "Box Mode",
-    Desc = "Choose box calculation method",
-    Values = {
-        "Performance",
-        "Accurate"
-    },
-    Value = Settings.BoxMode,
-
-    Callback = function(Value)
-        Settings.BoxMode = Value
-    end
-})
-
 local DistanceSection = Tabs.ESP:Section({
     Title = "Distances",
     Icon = "maximize",
@@ -449,6 +419,27 @@ DistanceSection:Slider({
     Step = 1,
     Callback = function(Value)
         Settings.BoxDistance = Value
+    end
+})
+
+local BoxModeSection = Tabs.ESP:Section({
+    Title = "2D Box Mode",
+    Icon = "square",
+    Opened = true,
+    Box = true
+})
+
+BoxModeSection:Dropdown({
+    Title = "Box Mode",
+    Desc = "Choose box calculation method",
+    Values = {
+        "Performance",
+        "Accurate"
+    },
+    Value = Settings.BoxMode,
+
+    Callback = function(Value)
+        Settings.BoxMode = Value
     end
 })
 
@@ -616,64 +607,64 @@ Tabs.Detection:Paragraph({
 })
 
 local DetectionSection = Tabs.Detection:Section({
-  Title = "Raycast",
-  Icon = "crosshair",
-  Opened = true,
-  Box = true
+    Title = "Raycast",
+    Icon = "crosshair",
+    Opened = true,
+    Box = true
 })
 
-UIControls.Detection.Visibility = DetectionSection:Toggle({
-  Title = "Visibility Check",
-  Desc = "Check players behind walls",
-  Value = Settings.VisibilityCheck,
-  Callback = function(Value)
-    Settings.VisibilityCheck = Value
-  end
+DetectionSection:Toggle({
+    Title = "Visibility Check",
+    Desc = "Check players behind walls",
+    Value = Settings.VisibilityCheck,
+    Callback = function(Value)
+        Settings.VisibilityCheck = Value
+    end
 })
 
-UIControls.Detection.BodyParts = DetectionSection:Toggle({
-  Title = "Body Part Raycast",
-  Desc = "Check body parts individually",
-  Value = Settings.BodyPartRaycast,
-  Callback = function(Value)
-    Settings.BodyPartRaycast = Value
-  end
+DetectionSection:Toggle({
+    Title = "Body Part Raycast",
+    Desc = "Check body parts individually",
+    Value = Settings.BodyPartRaycast,
+    Callback = function(Value)
+        Settings.BodyPartRaycast = Value
+    end
 })
 
-UIControls.Detection.Origin = DetectionSection:Dropdown({
-  Title = "Raycast Origin",
-  Desc = "Choose where rays start",
-  Values = {
-    "Character",
-    "Camera"
-  },
-  Value = Settings.RayOrigin,
-  Callback = function(Value)
-    Settings.RayOrigin = Value
-  end
+DetectionSection:Toggle({
+    Title = "Automatic Fallback",
+    Desc = "Switch to normal raycast farther away",
+    Value = Settings.BodyPartRaycastFallback,
+    Callback = function(Value)
+        Settings.BodyPartRaycastFallback = Value
+    end
 })
 
-UIControls.Detection.Fallback = DetectionSection:Toggle({
-  Title = "Automatic Fallback",
-  Desc = "Use normal raycast at longer distances",
-  Value = Settings.BodyPartRaycastFallback,
-  Callback = function(Value)
-    Settings.BodyPartRaycastFallback = Value
-  end
+DetectionSection:Slider({
+    Title = "Fallback Distance",
+    Desc = "Distance where normal raycast starts",
+    Value = {
+        Min = MIN_DISTANCE,
+        Max = MAX_DISTANCE,
+        Default = Settings.BodyPartRaycastDistance
+    },
+    Step = 1,
+    Callback = function(Value)
+        Settings.BodyPartRaycastDistance = Value
+    end
 })
 
-UIControls.Detection.FallbackDistance = DetectionSection:Slider({
-  Title = "Fallback Distance",
-  Desc = "Distance before normal raycast",
-  Value = {
-    Min = MIN_DISTANCE,
-    Max = MAX_DISTANCE,
-    Default = Settings.BodyPartRaycastDistance
-  },
-  Step = 1,
-  Callback = function(Value)
-    Settings.BodyPartRaycastDistance = Value
-  end
+DetectionSection:Dropdown({
+    Title = "Raycast Origin",
+    Desc = "Choose where rays start",
+    Values = {
+        "Character",
+        "Camera"
+    },
+    Value = Settings.RayOrigin,
+    Callback = function(Value)
+        Settings.RayOrigin = Value
+    end
 })
 
 local DetectionResetSection = Tabs.Detection:Section({
@@ -1119,8 +1110,6 @@ AppearanceSection:Button({
     end
 })
 
-Tabs.Settings:Divider()
-
 local ResetAllSection = Tabs.Settings:Section({
     Title = "Reset All",
     Icon = "refresh-cw",
@@ -1167,8 +1156,6 @@ ResetAllSection:Button({
         })
     end
 })
-
-Window:Open()
 
 local ESPGui = Instance.new("ScreenGui")
 
@@ -2462,67 +2449,6 @@ for _, Player in ipairs(
     if Player ~= LocalPlayer then
         CreateESP(Player)
     end
-end
-
-Players.PlayerAdded:Connect(
-    function(Player)
-        if Player ~= LocalPlayer then
-            CreateESP(Player)
-        end
-    end
-)
-
-Players.PlayerRemoving:Connect(
-    function(Player)
-        RemoveESP(Player)
-    end
-)
-
-local Timer = 0
-local ScanTimer = 0
-local UPDATE_INTERVAL = 0.05
-
-RunService.RenderStepped:Connect(
-    function(Delta)
-        Timer += Delta
-        ScanTimer += Delta
-
-        if ScanTimer >= 1 then
-            ScanTimer = 0
-
-            for _, Player in ipairs(
-                Players:GetPlayers()
-            ) do
-                if Player ~= LocalPlayer
-                    and not ESPObjects[Player] then
-
-                    CreateESP(Player)
-                end
-            end
-        end
-
-        if Timer < UPDATE_INTERVAL then
-            return
-        end
-
-        Timer = 0
-
-        UpdateHighlightBudget()
-
-        for Player, Data in pairs(
-            ESPObjects
-        ) do
-            if Player.Parent == Players then
-                UpdateESP(
-                    Player,
-                    Data
-                )
-            else
-                RemoveESP(Player)
-            end
-        end
-    end
-)d
 end
 
 Players.PlayerAdded:Connect(
