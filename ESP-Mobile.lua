@@ -90,8 +90,7 @@ ContainerCorner.Parent = Container
 
 local IconButton = Instance.new("TextButton")
 IconButton.Name = "Icon"
-IconButton.Size = UDim2.fromOffset(70, 70)
-IconButton.Position = UDim2.fromOffset(-5, -5)
+IconButton.Size = UDim2.fromScale(1, 1)
 IconButton.BackgroundTransparency = 1
 IconButton.BorderSizePixel = 0
 IconButton.Text = "ESP"
@@ -678,25 +677,27 @@ local UserInputService = game:GetService("UserInputService")
 local Dragging = false
 local DragStart
 local DragPosition
-local DragMoved = false
 local DragInput
+local DragMoved = false
 
 local DRAG_THRESHOLD = 10
+local ICON_TOUCH_SIZE = 70
 
 local function BeginDrag(input)
   if ResizeData then return end
 
   Dragging = true
   DragMoved = false
-  DragStart = input.Position
-  DragPosition = Container.Position
   DragInput = input
+  DragStart = Vector2.new(input.Position.X, input.Position.Y)
+  DragPosition = Container.Position
 end
 
 local function MoveDrag(input)
-  if not Dragging or ResizeData then return end
+  if not Dragging or ResizeData or input ~= DragInput then return end
 
-  local delta = input.Position - DragStart
+  local currentPosition = Vector2.new(input.Position.X, input.Position.Y)
+  local delta = currentPosition - DragStart
 
   if delta.Magnitude >= DRAG_THRESHOLD then
     DragMoved = true
@@ -710,8 +711,8 @@ local function MoveDrag(input)
   )
 end
 
-local function EndDrag()
-  if not Dragging then return end
+local function EndDrag(input)
+  if not Dragging or input ~= DragInput then return end
 
   local wasMoved = DragMoved
 
@@ -719,18 +720,59 @@ local function EndDrag()
   DragMoved = false
   DragInput = nil
 
-  -- A drag never counts as a click.
-  return wasMoved
+  if not MenuOpen and not wasMoved then
+    OpenMenu()
+  end
 end
 
--- Icon interaction
-IconButton.InputBegan:Connect(function(input)
+-- Invisible enlarged touch zone for the icon.
+local IconHitbox = Instance.new("TextButton")
+IconHitbox.Name = "IconHitbox"
+IconHitbox.Size = UDim2.fromOffset(ICON_TOUCH_SIZE, ICON_TOUCH_SIZE)
+IconHitbox.BackgroundTransparency = 1
+IconHitbox.BorderSizePixel = 0
+IconHitbox.Text = ""
+IconHitbox.AutoButtonColor = false
+IconHitbox.Active = true
+IconHitbox.ZIndex = 130
+IconHitbox.Parent = ScreenGui
+
+local function UpdateIconHitbox()
+  local position = Container.AbsolutePosition
+  local size = Container.AbsoluteSize
+  local hitboxSize = math.max(ICON_TOUCH_SIZE, size.X + 24, size.Y + 24)
+
+  IconHitbox.Size = UDim2.fromOffset(hitboxSize, hitboxSize)
+  IconHitbox.Position = UDim2.fromOffset(
+    position.X + size.X / 2 - hitboxSize / 2,
+    position.Y + size.Y / 2 - hitboxSize / 2
+  )
+  IconHitbox.Visible = not MenuOpen
+end
+
+IconHitbox.InputBegan:Connect(function(input)
   if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
     BeginDrag(input)
   end
 end)
 
--- Menu drag area
+UserInputService.TouchMoved:Connect(function(input)
+  MoveDrag(input)
+
+  if ResizeData then
+    Resize(input)
+  end
+end)
+
+UserInputService.TouchEnded:Connect(function(input)
+  EndDrag(input)
+
+  if ResizeData then
+    EndResize()
+  end
+end)
+
+-- Invisible enlarged touch zone for dragging the menu.
 local MenuDragZone = Instance.new("TextButton")
 MenuDragZone.Name = "MenuDragZone"
 MenuDragZone.Size = UDim2.new(1, -65, 0, 60)
@@ -740,8 +782,8 @@ MenuDragZone.BorderSizePixel = 0
 MenuDragZone.Text = ""
 MenuDragZone.AutoButtonColor = false
 MenuDragZone.Active = true
-MenuDragZone.ZIndex = 105
 MenuDragZone.Visible = false
+MenuDragZone.ZIndex = 125
 MenuDragZone.Parent = Menu
 
 MenuDragZone.InputBegan:Connect(function(input)
@@ -750,29 +792,15 @@ MenuDragZone.InputBegan:Connect(function(input)
   end
 end)
 
-UserInputService.TouchMoved:Connect(function(input)
-  if Dragging then
-    MoveDrag(input)
-  end
-end)
-
-UserInputService.TouchEnded:Connect(function(input)
-  if input.UserInputType ~= Enum.UserInputType.Touch then return end
-  if not Dragging or input ~= DragInput then return end
-
-  local wasMoved = EndDrag()
-
-  -- Only a tap opens the menu.
-  if not MenuOpen and not wasMoved then
-    OpenMenu()
-  end
-end)
-
 local function UpdateDragZones()
+  IconHitbox.Visible = not MenuOpen
   MenuDragZone.Visible = MenuOpen
 end
 
-Container:GetPropertyChangedSignal("Position"):Connect(UpdateDragZones)
+Container:GetPropertyChangedSignal("AbsolutePosition"):Connect(UpdateIconHitbox)
+Container:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateIconHitbox)
+
+UpdateIconHitbox()
 UpdateDragZones()
 
 --animation
@@ -809,7 +837,10 @@ function OpenMenu()
   Settings.MenuWidth = MenuWidth
   Settings.MenuHeight = MenuHeight
 
-  Container.Size = UDim2.fromOffset(Settings.IconSize, Settings.IconSize)
+  Container.Size = UDim2.fromOffset(
+    Settings.IconSize,
+    Settings.IconSize
+  )
 
   TweenService:Create(Container, OpenInfo, {
     Size = UDim2.fromOffset(MenuWidth, MenuHeight)
@@ -890,6 +921,8 @@ local function CloseMenu()
 
   MenuOpen = false
   Animating = false
+  UpdateDragZones()
+  UpdateIconHitbox()
 end
 
 CloseButton.Activated:Connect(CloseMenu)
