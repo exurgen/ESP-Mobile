@@ -653,6 +653,13 @@ local Dragging = false
 local DragStart
 local DragPosition
 
+-- Make the actual icon button larger than the visible icon.
+-- The transparent area is used as an easier touch zone.
+Container.ClipsDescendants = false
+
+IconButton.Size = UDim2.fromOffset(70, 70)
+IconButton.Position = UDim2.new(0.5, -35, 0.5, -35)
+
 local function BeginDrag(input)
   if ResizeData then return end
 
@@ -678,42 +685,8 @@ local function EndDrag()
   Dragging = false
 end
 
--- Invisible enlarged touch zones.
-local IconDragZone = Instance.new("TextButton")
-IconDragZone.Name = "IconDragZone"
-IconDragZone.Size = UDim2.fromOffset(70, 70)
-IconDragZone.BackgroundTransparency = 1
-IconDragZone.BorderSizePixel = 0
-IconDragZone.Text = ""
-IconDragZone.AutoButtonColor = false
-IconDragZone.Active = true
-IconDragZone.ZIndex = 1
-IconDragZone.Parent = ScreenGui
-
-local MenuDragZone = Instance.new("TextButton")
-MenuDragZone.Name = "MenuDragZone"
-MenuDragZone.Size = UDim2.new(1, -90, 0, 60)
-MenuDragZone.Position = UDim2.fromOffset(10, 0)
-MenuDragZone.BackgroundTransparency = 1
-MenuDragZone.BorderSizePixel = 0
-MenuDragZone.Text = ""
-MenuDragZone.AutoButtonColor = false
-MenuDragZone.Active = true
-MenuDragZone.Visible = false
-MenuDragZone.ZIndex = 10
-MenuDragZone.Parent = Menu
-
--- Keep the icon above the invisible drag zone.
-Container.ZIndex = 5
-
-IconDragZone.InputBegan:Connect(function(input)
+IconButton.InputBegan:Connect(function(input)
   if input.UserInputType == Enum.UserInputType.Touch and not MenuOpen then
-    BeginDrag(input)
-  end
-end)
-
-MenuDragZone.InputBegan:Connect(function(input)
-  if input.UserInputType == Enum.UserInputType.Touch and MenuOpen then
     BeginDrag(input)
   end
 end)
@@ -728,22 +701,30 @@ UserInputService.TouchEnded:Connect(function()
   EndDrag()
 end)
 
-local function UpdateDragZone()
-  IconDragZone.Position = UDim2.new(
-    Container.Position.X.Scale,
-    Container.Position.X.Offset + Container.AbsoluteSize.X / 2 - 35,
-    Container.Position.Y.Scale,
-    Container.Position.Y.Offset + Container.AbsoluteSize.Y / 2 - 35
-  )
+local MenuDragZone = Instance.new("TextButton")
+MenuDragZone.Name = "MenuDragZone"
+MenuDragZone.Size = UDim2.new(1, -90, 0, 60)
+MenuDragZone.Position = UDim2.fromOffset(10, 0)
+MenuDragZone.BackgroundTransparency = 1
+MenuDragZone.BorderSizePixel = 0
+MenuDragZone.Text = ""
+MenuDragZone.AutoButtonColor = false
+MenuDragZone.Active = true
+MenuDragZone.Visible = false
+MenuDragZone.ZIndex = 10
+MenuDragZone.Parent = Menu
 
-  IconDragZone.Visible = not MenuOpen
+MenuDragZone.InputBegan:Connect(function(input)
+  if input.UserInputType == Enum.UserInputType.Touch and MenuOpen then
+    BeginDrag(input)
+  end
+end)
+
+local function UpdateMenuDragZone()
   MenuDragZone.Visible = MenuOpen
 end
 
-Container:GetPropertyChangedSignal("Position"):Connect(UpdateDragZone)
-Container:GetPropertyChangedSignal("Size"):Connect(UpdateDragZone)
-
-UpdateDragZone()
+UpdateMenuDragZone()
 
 --animation
 local OpenInfo = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
