@@ -6,7 +6,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 -- windui
 local WindUI = loadstring(game:HttpGet(
-  "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+  "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
 ))()
 
 -- limits
@@ -48,8 +48,22 @@ local Window = WindUI:CreateWindow({
   Title = "PLAYER ESP",
   Icon = "eye",
   Author = "Mobile ESP",
+  Folder = "PlayerESP",
+
+  Size = UDim2.fromOffset(520, 440),
+  MinSize = Vector2.new(360, 300),
+  MaxSize = Vector2.new(800, 650),
+
   Theme = "Dark",
-  Transparent = false
+  Resizable = true,
+  SideBarWidth = 180,
+  HideSearchBar = true,
+  ScrollBarEnabled = true,
+
+  User = {
+    Enabled = true,
+    Anonymous = false
+  }
 })
 
 local Sections = {
@@ -85,7 +99,7 @@ local Tabs = {
   })
 }
 
--- esp
+-- esp tab
 Tabs.ESP:Paragraph({
   Title = "Player ESP",
   Desc = "Configure how players are displayed.",
@@ -159,7 +173,7 @@ DistanceSection:Slider({
   end
 })
 
--- misc
+-- misc tab
 Tabs.Misc:Paragraph({
   Title = "ESP Appearance",
   Desc = "Customize the appearance of player information.",
@@ -202,7 +216,7 @@ TextSection:Slider({
   end
 })
 
--- settings
+-- settings tab
 Tabs.Settings:Paragraph({
   Title = "Interface",
   Desc = "Customize the appearance of the ESP menu.",
@@ -225,44 +239,26 @@ end
 
 table.sort(Themes)
 
-local UpdatingTheme = false
-
-local ThemeDropdown = SettingsTab:Dropdown({
+local ThemeDropdown = AppearanceSection:Dropdown({
   Title = "Theme",
   Desc = "Choose the interface theme",
   Values = Themes,
-  Value = WindUI:GetCurrentTheme(),
-  Multi = false,
-  AllowNone = false,
+  Flag = "ThemeDropdown",
+  SearchBarEnabled = true,
+  MenuWidth = 280,
+  Value = "Dark",
 
-  Callback = function(Theme)
-    if UpdatingTheme or not Theme then
-      return
-    end
+  Callback = function(theme)
+    WindUI:SetTheme(theme)
 
-    UpdatingTheme = true
-
-    WindUI:SetTheme(Theme)
-
-    task.defer(function()
-      UpdatingTheme = false
-    end)
+    WindUI:Notify({
+      Title = "Theme Applied",
+      Content = theme,
+      Icon = "palette",
+      Duration = 2
+    })
   end
 })
-
-WindUI:OnThemeChange(function(Theme)
-  if UpdatingTheme then
-    return
-  end
-
-  UpdatingTheme = true
-
-  ThemeDropdown:Select(Theme)
-
-  task.defer(function()
-    UpdatingTheme = false
-  end)
-end)
 
 AppearanceSection:Divider()
 
@@ -273,6 +269,7 @@ AppearanceSection:Button({
 
   Callback = function()
     WindUI:SetTheme("Dark")
+    ThemeDropdown:Select("Dark")
 
     WindUI:Notify({
       Title = "Theme Reset",
@@ -282,6 +279,9 @@ AppearanceSection:Button({
     })
   end
 })
+
+-- open window
+Window:Open()
 
 -- visibility
 local function IsVisible(character)
@@ -346,7 +346,7 @@ local function GetPlayerColor(player, character)
     or Colors.EnemyHidden
 end
 
--- create esp
+-- esp
 local function CreateESP(player)
   if player == LocalPlayer or ESPObjects[player] then
     return
@@ -475,10 +475,8 @@ local function UpdateESP(player, Data)
   end
 
   Data.Billboard.Enabled = true
-
   Data.Name.TextSize = Settings.NameSize
   Data.Distance.TextSize = Settings.DistanceSize
-
   Data.Name.TextColor3 = GetPlayerColor(
     player,
     Character
