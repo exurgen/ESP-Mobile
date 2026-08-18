@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════
--- PLAYER ESP — Enhanced Edition
--- 2D Boxes · 3D Boxes · Tracers · Height · Box Grouping
+-- PLAYER ESP — Enhanced Edition v2
+-- 2D Boxes · 3D Boxes · Tracers · Height · Animated Box Grouping
 -- ═══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -9,11 +9,11 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Drawing API availability check
+-- Drawing API check
 local HasDrawing = false
 pcall(function()
     local test = Drawing.new("Line")
-    test:Remove()
+    pcall(function() test:Remove() end)
     HasDrawing = true
 end)
 
@@ -46,11 +46,13 @@ local MIN_THICKNESS = 1
 local MAX_THICKNESS = 4
 local DEFAULT_THICKNESS = 1
 
+local LERP_FACTOR = 0.15
+
 -- 3D box edges (12 edges connecting 8 corners)
 local EDGES_3D = {
-    {1, 2}, {2, 4}, {4, 3}, {3, 1},  -- bottom face
-    {5, 6}, {6, 8}, {8, 7}, {7, 5},  -- top face
-    {1, 5}, {2, 6}, {3, 7}, {4, 8},  -- vertical edges
+    {1, 2}, {2, 4}, {4, 3}, {3, 1},
+    {5, 6}, {6, 8}, {8, 7}, {7, 5},
+    {1, 5}, {2, 6}, {3, 7}, {4, 8},
 }
 
 -- ═══════════════════════════════════════════════════════════
@@ -65,7 +67,6 @@ local DEFAULT_COLORS = {
 
     EnemyName = Color3.fromRGB(255, 255, 255),
     TeamName = Color3.fromRGB(255, 255, 255),
-
     EnemyDistance = Color3.fromRGB(220, 220, 220),
     TeamDistance = Color3.fromRGB(220, 220, 220),
 
@@ -117,7 +118,6 @@ local DEFAULT_SETTINGS = {
     BoxDistance = DEFAULT_DISTANCE,
     Box3DDistance = DEFAULT_DISTANCE,
     TracerDistance = DEFAULT_DISTANCE,
-
     BodyPartRaycastDistance = 500,
 
     NameSize = DEFAULT_NAME_SIZE,
@@ -135,7 +135,6 @@ local DEFAULT_SETTINGS = {
 
     BoxMode = "Accurate",
     RayOrigin = "Character",
-
     TracerOrigin = "Bottom",
     TracerThickness = DEFAULT_THICKNESS,
     Box3DThickness = DEFAULT_THICKNESS,
@@ -191,9 +190,11 @@ end
 -- ═══════════════════════════════════════════════════════════
 
 local ClearHighlights
+local Update3DBox
+local UpdateTracer
 
 -- ═══════════════════════════════════════════════════════════
--- ESP OBJECTS STORAGE
+-- ESP OBJECTS
 -- ═══════════════════════════════════════════════════════════
 
 local ESPObjects = {}
@@ -209,28 +210,18 @@ local WindUI = loadstring(game:HttpGet(
 local Window = WindUI:CreateWindow({
     Title = "PLAYER ESP",
     Icon = "eye",
-    Author = "Enhanced ESP",
+    Author = "Enhanced ESP v2",
     Folder = "PlayerESP",
-
     Size = UDim2.fromOffset(560, 480),
     MinSize = Vector2.new(390, 330),
     MaxSize = Vector2.new(900, 720),
-
     Theme = "Dark",
     Resizable = true,
     SideBarWidth = 180,
     HideSearchBar = true,
     ScrollBarEnabled = true,
-
-    User = {
-        Enabled = true,
-        Anonymous = false,
-    },
+    User = { Enabled = true, Anonymous = false },
 })
-
--- ═══════════════════════════════════════════════════════════
--- SECTIONS & TABS
--- ═══════════════════════════════════════════════════════════
 
 local Sections = {
     About = Window:Section({ Title = "ABOUT", Opened = true }),
@@ -239,41 +230,13 @@ local Sections = {
 }
 
 local Tabs = {
-    About = Sections.About:Tab({
-        Title = "About",
-        Icon = "house",
-        Desc = "Features and tips",
-    }),
-    ESP = Sections.Features:Tab({
-        Title = "ESP",
-        Icon = "eye",
-        Desc = "Main ESP features and distances",
-    }),
-    Detection = Sections.Features:Tab({
-        Title = "Detection",
-        Icon = "scan-search",
-        Desc = "Visibility and raycast",
-    }),
-    Profiles = Sections.Features:Tab({
-        Title = "Profiles",
-        Icon = "users",
-        Desc = "Enemy and teammate settings",
-    }),
-    Text = Sections.Config:Tab({
-        Title = "Text",
-        Icon = "type",
-        Desc = "Text appearance and sizing",
-    }),
-    Colors = Sections.Config:Tab({
-        Title = "Colors",
-        Icon = "palette",
-        Desc = "All ESP colors",
-    }),
-    Settings = Sections.Config:Tab({
-        Title = "Settings",
-        Icon = "settings",
-        Desc = "Theme and reset",
-    }),
+    About = Sections.About:Tab({ Title = "About", Icon = "house", Desc = "Features and tips" }),
+    ESP = Sections.Features:Tab({ Title = "ESP", Icon = "eye", Desc = "Main ESP features and distances" }),
+    Detection = Sections.Features:Tab({ Title = "Detection", Icon = "scan-search", Desc = "Visibility and raycast" }),
+    Profiles = Sections.Features:Tab({ Title = "Profiles", Icon = "users", Desc = "Enemy and teammate settings" }),
+    Text = Sections.Config:Tab({ Title = "Text", Icon = "type", Desc = "Text appearance and sizing" }),
+    Colors = Sections.Config:Tab({ Title = "Colors", Icon = "palette", Desc = "All ESP colors" }),
+    Settings = Sections.Config:Tab({ Title = "Settings", Icon = "settings", Desc = "Theme and reset" }),
 }
 
 -- ═══════════════════════════════════════════════════════════
@@ -282,294 +245,66 @@ local Tabs = {
 
 Tabs.About:Paragraph({
     Title = "PLAYER ESP",
-    Desc = "Enhanced player visualization with 2D/3D boxes, tracers, height and grouping",
-    Image = "eye",
-    ImageSize = 26,
+    Desc = "Enhanced player visualization with 2D/3D boxes, tracers, height and animated grouping",
+    Image = "eye", ImageSize = 26,
 })
 
-local AboutFeatures = Tabs.About:Section({
-    Title = "Features",
-    Icon = "info",
-    Opened = true,
-    Box = true,
-})
+local AboutFeatures = Tabs.About:Section({ Title = "Features", Icon = "info", Opened = true, Box = true })
 
-AboutFeatures:Paragraph({
-    Title = "2D Boxes",
-    Desc = "Screen-space rectangles with Performance and Accurate modes.",
-    Image = "square",
-    ImageSize = 18,
-})
+AboutFeatures:Paragraph({ Title = "2D Boxes", Desc = "Screen-space rectangles with Performance and Accurate modes.", Image = "square", ImageSize = 18 })
+AboutFeatures:Paragraph({ Title = "3D Boxes", Desc = "Wireframe cubes projected from the character root. Requires Drawing API.", Image = "box", ImageSize = 18 })
+AboutFeatures:Paragraph({ Title = "Tracers", Desc = "Lines from screen bottom, center, or your character to each player.", Image = "move", ImageSize = 18 })
+AboutFeatures:Paragraph({ Title = "Height", Desc = "Shows each player Y coordinate elevation.", Image = "move-vertical", ImageSize = 18 })
+AboutFeatures:Paragraph({ Title = "Box Grouping", Desc = "Overlapping 2D boxes smoothly animate into one merged box with a player count label.", Image = "group", ImageSize = 18 })
+AboutFeatures:Paragraph({ Title = "Detection", Desc = "Body-part or normal raycasting with selectable origin and automatic fallback.", Image = "scan-search", ImageSize = 18 })
+AboutFeatures:Paragraph({ Title = "Profiles", Desc = "Independent enemy and teammate settings for every ESP element.", Image = "users", ImageSize = 18 })
 
-AboutFeatures:Paragraph({
-    Title = "3D Boxes",
-    Desc = "Wireframe cubes projected from the character bounding box. Requires Drawing API.",
-    Image = "box",
-    ImageSize = 18,
-})
-
-AboutFeatures:Paragraph({
-    Title = "Tracers",
-    Desc = "Lines from screen bottom, center, or your character to each player.",
-    Image = "move",
-    ImageSize = 18,
-})
-
-AboutFeatures:Paragraph({
-    Title = "Height",
-    Desc = "Shows each player's Y coordinate elevation.",
-    Image = "move-vertical",
-    ImageSize = 18,
-})
-
-AboutFeatures:Paragraph({
-    Title = "Box Grouping",
-    Desc = "When multiple 2D boxes overlap, they merge into one with a player count label.",
-    Image = "group",
-    ImageSize = 18,
-})
-
-AboutFeatures:Paragraph({
-    Title = "Detection",
-    Desc = "Body-part or normal raycasting with selectable origin and automatic fallback.",
-    Image = "scan-search",
-    ImageSize = 18,
-})
-
-AboutFeatures:Paragraph({
-    Title = "Profiles",
-    Desc = "Independent enemy and teammate settings for every ESP element.",
-    Image = "users",
-    ImageSize = 18,
-})
-
-local AboutTips = Tabs.About:Section({
-    Title = "Tips",
-    Icon = "lightbulb",
-    Opened = true,
-    Box = true,
-})
-
-AboutTips:Paragraph({
-    Title = "Performance",
-    Desc = "Use Performance box mode and lower highlight distance on mobile for better FPS.",
-    Image = "zap",
-    ImageSize = 18,
-})
-
-AboutTips:Paragraph({
-    Title = "Profiles",
-    Desc = "Switch between Enemy and Teammate profiles to configure each side independently.",
-    Image = "users",
-    ImageSize = 18,
-})
-
-AboutTips:Paragraph({
-    Title = "Dynamic Text",
-    Desc = "Dynamic mode scales text based on distance — closer players get larger text.",
-    Image = "move-diagonal-2",
-    ImageSize = 18,
-})
+local AboutTips = Tabs.About:Section({ Title = "Tips", Icon = "lightbulb", Opened = true, Box = true })
+AboutTips:Paragraph({ Title = "Performance", Desc = "Use Performance box mode and lower highlight distance on mobile for better FPS.", Image = "zap", ImageSize = 18 })
+AboutTips:Paragraph({ Title = "Profiles", Desc = "Switch between Enemy and Teammate profiles to configure each side independently.", Image = "users", ImageSize = 18 })
+AboutTips:Paragraph({ Title = "Dynamic Text", Desc = "Dynamic mode scales text based on distance.", Image = "move-diagonal-2", ImageSize = 18 })
 
 -- ═══════════════════════════════════════════════════════════
 -- ESP TAB
 -- ═══════════════════════════════════════════════════════════
 
-local ESPSection = Tabs.ESP:Section({
-    Title = "Features",
-    Icon = "scan",
-    Opened = true,
-    Box = true,
-})
+local ESPSection = Tabs.ESP:Section({ Title = "Features", Icon = "scan", Opened = true, Box = true })
 
-ESPSection:Toggle({
-    Title = "ESP",
-    Desc = "Master toggle for all ESP features",
-    Value = Settings.ESP,
-    Callback = function(Value) Settings.ESP = Value end,
-})
+ESPSection:Toggle({ Title = "ESP", Desc = "Master toggle", Value = Settings.ESP, Callback = function(V) Settings.ESP = V end })
+ESPSection:Toggle({ Title = "Names", Desc = "Show player display names", Value = Settings.ShowName, Callback = function(V) Settings.ShowName = V end })
+ESPSection:Toggle({ Title = "Distance", Desc = "Show distance in studs", Value = Settings.ShowDistance, Callback = function(V) Settings.ShowDistance = V end })
+ESPSection:Toggle({ Title = "Height", Desc = "Show player Y-coordinate", Value = Settings.ShowHeight, Callback = function(V) Settings.ShowHeight = V end })
+ESPSection:Toggle({ Title = "Highlight", Desc = "Highlight body parts", Value = Settings.Highlight, Callback = function(V) Settings.Highlight = V end })
+ESPSection:Toggle({ Title = "2D Boxes", Desc = "Screen-space rectangles", Value = Settings.Boxes, Callback = function(V) Settings.Boxes = V end })
+ESPSection:Toggle({ Title = "3D Boxes", Desc = "3D wireframe cubes (requires Drawing API)", Value = Settings.Box3D, Callback = function(V) Settings.Box3D = V end })
+ESPSection:Toggle({ Title = "Tracers", Desc = "Lines from screen origin to players", Value = Settings.Tracers, Callback = function(V) Settings.Tracers = V end })
+ESPSection:Toggle({ Title = "Box Grouping", Desc = "Merge overlapping 2D boxes with smooth animation and count label", Value = Settings.BoxGrouping, Callback = function(V) Settings.BoxGrouping = V end })
+ESPSection:Toggle({ Title = "Team Check", Desc = "Separate enemies and teammates", Value = Settings.TeamCheck, Callback = function(V) Settings.TeamCheck = V end })
 
-ESPSection:Toggle({
-    Title = "Names",
-    Desc = "Show player display names",
-    Value = Settings.ShowName,
-    Callback = function(Value) Settings.ShowName = Value end,
-})
+local DistanceSection = Tabs.ESP:Section({ Title = "Distances", Icon = "maximize", Opened = true, Box = true })
 
-ESPSection:Toggle({
-    Title = "Distance",
-    Desc = "Show distance to each player in studs",
-    Value = Settings.ShowDistance,
-    Callback = function(Value) Settings.ShowDistance = Value end,
-})
+DistanceSection:Slider({ Title = "Text Distance", Desc = "Max distance for text", Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE }, Step = 1, Callback = function(V) Settings.ESPDistance = V end })
+DistanceSection:Slider({ Title = "Highlight Distance", Desc = "Max highlight distance", Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE }, Step = 1, Callback = function(V) Settings.HighlightDistance = V end })
+DistanceSection:Slider({ Title = "2D Box Distance", Desc = "Max 2D box distance", Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE }, Step = 1, Callback = function(V) Settings.BoxDistance = V end })
+DistanceSection:Slider({ Title = "3D Box Distance", Desc = "Max 3D box distance", Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE }, Step = 1, Callback = function(V) Settings.Box3DDistance = V end })
+DistanceSection:Slider({ Title = "Tracer Distance", Desc = "Max tracer distance", Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE }, Step = 1, Callback = function(V) Settings.TracerDistance = V end })
 
-ESPSection:Toggle({
-    Title = "Height",
-    Desc = "Show player Y-coordinate elevation",
-    Value = Settings.ShowHeight,
-    Callback = function(Value) Settings.ShowHeight = Value end,
-})
+local AppearanceSection = Tabs.ESP:Section({ Title = "Box & Tracer Appearance", Icon = "sliders-horizontal", Opened = true, Box = true })
 
-ESPSection:Toggle({
-    Title = "Highlight",
-    Desc = "Highlight player body parts with color overlay",
-    Value = Settings.Highlight,
-    Callback = function(Value) Settings.Highlight = Value end,
-})
+AppearanceSection:Dropdown({ Title = "2D Box Mode", Desc = "Performance: fast. Accurate: precise per-limb.", Values = { "Performance", "Accurate" }, Value = Settings.BoxMode, Callback = function(V) Settings.BoxMode = V end })
+AppearanceSection:Dropdown({ Title = "Tracer Origin", Desc = "Where tracer lines start", Values = { "Bottom", "Center", "Player" }, Value = Settings.TracerOrigin, Callback = function(V) Settings.TracerOrigin = V end })
+AppearanceSection:Slider({ Title = "3D Box Thickness", Desc = "Line thickness", Value = { Min = MIN_THICKNESS, Max = MAX_THICKNESS, Default = DEFAULT_THICKNESS }, Step = 1, Callback = function(V) Settings.Box3DThickness = V end })
+AppearanceSection:Slider({ Title = "Tracer Thickness", Desc = "Line thickness", Value = { Min = MIN_THICKNESS, Max = MAX_THICKNESS, Default = DEFAULT_THICKNESS }, Step = 1, Callback = function(V) Settings.TracerThickness = V end })
 
-ESPSection:Toggle({
-    Title = "2D Boxes",
-    Desc = "Draw screen-space rectangles around players",
-    Value = Settings.Boxes,
-    Callback = function(Value) Settings.Boxes = Value end,
-})
-
-ESPSection:Toggle({
-    Title = "3D Boxes",
-    Desc = "Draw 3D wireframe cubes around players (requires Drawing API)",
-    Value = Settings.Box3D,
-    Callback = function(Value) Settings.Box3D = Value end,
-})
-
-ESPSection:Toggle({
-    Title = "Tracers",
-    Desc = "Draw lines from screen origin to each player",
-    Value = Settings.Tracers,
-    Callback = function(Value) Settings.Tracers = Value end,
-})
-
-ESPSection:Toggle({
-    Title = "Box Grouping",
-    Desc = "Merge overlapping 2D boxes and show player count",
-    Value = Settings.BoxGrouping,
-    Callback = function(Value) Settings.BoxGrouping = Value end,
-})
-
-ESPSection:Toggle({
-    Title = "Team Check",
-    Desc = "Separate enemies and teammates with different colors",
-    Value = Settings.TeamCheck,
-    Callback = function(Value) Settings.TeamCheck = Value end,
-})
-
--- Distances
-local DistanceSection = Tabs.ESP:Section({
-    Title = "Distances",
-    Icon = "maximize",
-    Opened = true,
-    Box = true,
-})
-
-DistanceSection:Slider({
-    Title = "Text Distance",
-    Desc = "Maximum distance for name, distance and height text",
-    Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE },
-    Step = 1,
-    Callback = function(Value) Settings.ESPDistance = Value end,
-})
-
-DistanceSection:Slider({
-    Title = "Highlight Distance",
-    Desc = "Maximum distance for body-part highlights",
-    Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE },
-    Step = 1,
-    Callback = function(Value) Settings.HighlightDistance = Value end,
-})
-
-DistanceSection:Slider({
-    Title = "2D Box Distance",
-    Desc = "Maximum distance for 2D boxes",
-    Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE },
-    Step = 1,
-    Callback = function(Value) Settings.BoxDistance = Value end,
-})
-
-DistanceSection:Slider({
-    Title = "3D Box Distance",
-    Desc = "Maximum distance for 3D wireframe boxes",
-    Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE },
-    Step = 1,
-    Callback = function(Value) Settings.Box3DDistance = Value end,
-})
-
-DistanceSection:Slider({
-    Title = "Tracer Distance",
-    Desc = "Maximum distance for tracer lines",
-    Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = DEFAULT_DISTANCE },
-    Step = 1,
-    Callback = function(Value) Settings.TracerDistance = Value end,
-})
-
--- Appearance
-local AppearanceSection = Tabs.ESP:Section({
-    Title = "Box & Tracer Appearance",
-    Icon = "sliders-horizontal",
-    Opened = true,
-    Box = true,
-})
-
-AppearanceSection:Dropdown({
-    Title = "2D Box Mode",
-    Desc = "Performance: fast approximate box. Accurate: precise per-limb calculation.",
-    Values = { "Performance", "Accurate" },
-    Value = Settings.BoxMode,
-    Callback = function(Value) Settings.BoxMode = Value end,
-})
-
-AppearanceSection:Dropdown({
-    Title = "Tracer Origin",
-    Desc = "Where tracer lines start from",
-    Values = { "Bottom", "Center", "Player" },
-    Value = Settings.TracerOrigin,
-    Callback = function(Value) Settings.TracerOrigin = Value end,
-})
-
-AppearanceSection:Slider({
-    Title = "3D Box Thickness",
-    Desc = "Line thickness for 3D wireframe boxes",
-    Value = { Min = MIN_THICKNESS, Max = MAX_THICKNESS, Default = DEFAULT_THICKNESS },
-    Step = 1,
-    Callback = function(Value) Settings.Box3DThickness = Value end,
-})
-
-AppearanceSection:Slider({
-    Title = "Tracer Thickness",
-    Desc = "Line thickness for tracer lines",
-    Value = { Min = MIN_THICKNESS, Max = MAX_THICKNESS, Default = DEFAULT_THICKNESS },
-    Step = 1,
-    Callback = function(Value) Settings.TracerThickness = Value end,
-})
-
--- Reset ESP
-local ESPResetSection = Tabs.ESP:Section({
-    Title = "Reset",
-    Icon = "rotate-ccw",
-    Opened = true,
-    Box = true,
-})
-
+local ESPResetSection = Tabs.ESP:Section({ Title = "Reset", Icon = "rotate-ccw", Opened = true, Box = true })
 ESPResetSection:Divider()
-
 ESPResetSection:Button({
-    Title = "Reset ESP",
-    Desc = "Restore ESP features, distances and appearance to defaults",
-    Icon = "rotate-ccw",
+    Title = "Reset ESP", Desc = "Restore ESP features and distances", Icon = "rotate-ccw",
     Callback = function()
-        for _, Key in ipairs({
-            "ESP", "ShowName", "ShowDistance", "ShowHeight",
-            "Highlight", "Boxes", "Box3D", "Tracers", "BoxGrouping", "TeamCheck",
-            "ESPDistance", "HighlightDistance", "BoxDistance",
-            "Box3DDistance", "TracerDistance",
-            "BoxMode", "TracerOrigin", "TracerThickness", "Box3DThickness",
-        }) do
+        for _, Key in ipairs({ "ESP", "ShowName", "ShowDistance", "ShowHeight", "Highlight", "Boxes", "Box3D", "Tracers", "BoxGrouping", "TeamCheck", "ESPDistance", "HighlightDistance", "BoxDistance", "Box3DDistance", "TracerDistance", "BoxMode", "TracerOrigin", "TracerThickness", "Box3DThickness" }) do
             Settings[Key] = DEFAULT_SETTINGS[Key]
         end
-        WindUI:Notify({
-            Title = "ESP Reset",
-            Content = "ESP settings restored to defaults",
-            Icon = "check",
-            Duration = 2,
-        })
+        WindUI:Notify({ Title = "ESP Reset", Content = "ESP settings restored", Icon = "check", Duration = 2 })
     end,
 })
 
@@ -577,83 +312,25 @@ ESPResetSection:Button({
 -- DETECTION TAB
 -- ═══════════════════════════════════════════════════════════
 
-Tabs.Detection:Paragraph({
-    Title = "Visibility Detection",
-    Desc = "Control how ESP determines if a player is visible or behind walls.",
-    Image = "scan-search",
-    ImageSize = 20,
-})
+Tabs.Detection:Paragraph({ Title = "Visibility Detection", Desc = "Control how ESP determines visibility.", Image = "scan-search", ImageSize = 20 })
 
-local DetectionSection = Tabs.Detection:Section({
-    Title = "Raycast",
-    Icon = "crosshair",
-    Opened = true,
-    Box = true,
-})
+local DetectionSection = Tabs.Detection:Section({ Title = "Raycast", Icon = "crosshair", Opened = true, Box = true })
 
-DetectionSection:Toggle({
-    Title = "Visibility Check",
-    Desc = "Raycast to determine if players are behind walls",
-    Value = Settings.VisibilityCheck,
-    Callback = function(Value) Settings.VisibilityCheck = Value end,
-})
+DetectionSection:Toggle({ Title = "Visibility Check", Desc = "Check players behind walls", Value = Settings.VisibilityCheck, Callback = function(V) Settings.VisibilityCheck = V end })
+DetectionSection:Toggle({ Title = "Body Part Raycast", Desc = "Check body parts individually", Value = Settings.BodyPartRaycast, Callback = function(V) Settings.BodyPartRaycast = V end })
+DetectionSection:Toggle({ Title = "Automatic Fallback", Desc = "Switch to normal raycast at long distances", Value = Settings.BodyPartRaycastFallback, Callback = function(V) Settings.BodyPartRaycastFallback = V end })
+DetectionSection:Slider({ Title = "Fallback Distance", Desc = "Distance where normal raycast starts", Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = Settings.BodyPartRaycastDistance }, Step = 1, Callback = function(V) Settings.BodyPartRaycastDistance = V end })
+DetectionSection:Dropdown({ Title = "Raycast Origin", Desc = "Where rays start", Values = { "Character", "Camera" }, Value = Settings.RayOrigin, Callback = function(V) Settings.RayOrigin = V end })
 
-DetectionSection:Toggle({
-    Title = "Body Part Raycast",
-    Desc = "Check each body part individually for precise visibility",
-    Value = Settings.BodyPartRaycast,
-    Callback = function(Value) Settings.BodyPartRaycast = Value end,
-})
-
-DetectionSection:Toggle({
-    Title = "Automatic Fallback",
-    Desc = "Switch to single-raycast at long distances to save performance",
-    Value = Settings.BodyPartRaycastFallback,
-    Callback = function(Value) Settings.BodyPartRaycastFallback = Value end,
-})
-
-DetectionSection:Slider({
-    Title = "Fallback Distance",
-    Desc = "Distance at which body-part raycast switches to normal",
-    Value = { Min = MIN_DISTANCE, Max = MAX_DISTANCE, Default = Settings.BodyPartRaycastDistance },
-    Step = 1,
-    Callback = function(Value) Settings.BodyPartRaycastDistance = Value end,
-})
-
-DetectionSection:Dropdown({
-    Title = "Raycast Origin",
-    Desc = "Where rays originate: your character or the camera",
-    Values = { "Character", "Camera" },
-    Value = Settings.RayOrigin,
-    Callback = function(Value) Settings.RayOrigin = Value end,
-})
-
-local DetectionResetSection = Tabs.Detection:Section({
-    Title = "Reset",
-    Icon = "rotate-ccw",
-    Opened = true,
-    Box = true,
-})
-
+local DetectionResetSection = Tabs.Detection:Section({ Title = "Reset", Icon = "rotate-ccw", Opened = true, Box = true })
 DetectionResetSection:Divider()
-
 DetectionResetSection:Button({
-    Title = "Reset Detection",
-    Desc = "Restore detection settings to defaults",
-    Icon = "rotate-ccw",
+    Title = "Reset Detection", Desc = "Restore detection settings", Icon = "rotate-ccw",
     Callback = function()
-        for _, Key in ipairs({
-            "VisibilityCheck", "BodyPartRaycast",
-            "BodyPartRaycastFallback", "BodyPartRaycastDistance", "RayOrigin",
-        }) do
+        for _, Key in ipairs({ "VisibilityCheck", "BodyPartRaycast", "BodyPartRaycastFallback", "BodyPartRaycastDistance", "RayOrigin" }) do
             Settings[Key] = DEFAULT_SETTINGS[Key]
         end
-        WindUI:Notify({
-            Title = "Detection Reset",
-            Content = "Detection settings restored",
-            Icon = "check",
-            Duration = 2,
-        })
+        WindUI:Notify({ Title = "Detection Reset", Content = "Restored", Icon = "check", Duration = 2 })
     end,
 })
 
@@ -661,12 +338,7 @@ DetectionResetSection:Button({
 -- PROFILES TAB
 -- ═══════════════════════════════════════════════════════════
 
-Tabs.Profiles:Paragraph({
-    Title = "Side Profiles",
-    Desc = "Configure enemy and teammate ESP independently. Switch the profile to edit each side.",
-    Image = "users",
-    ImageSize = 20,
-})
+Tabs.Profiles:Paragraph({ Title = "Side Profiles", Desc = "Configure enemy and teammate ESP independently.", Image = "users", ImageSize = 20 })
 
 local SelectedSide = "Enemy"
 local SideControls = {}
@@ -676,247 +348,85 @@ local function RefreshSideControls()
     for feature, controls in pairs(SideControls) do
         local data = side[feature]
         if data then
-            if controls.Enabled then
-                pcall(function() controls.Enabled:Set(data.Enabled) end)
-            end
-            if controls.NearDisable then
-                pcall(function() controls.NearDisable:Set(data.NearDisable) end)
-            end
-            if controls.NearDistance then
-                pcall(function() controls.NearDistance:Set(data.NearDistance) end)
-            end
+            if controls.Enabled then pcall(function() controls.Enabled:Set(data.Enabled) end) end
+            if controls.NearDisable then pcall(function() controls.NearDisable:Set(data.NearDisable) end) end
+            if controls.NearDistance then pcall(function() controls.NearDistance:Set(data.NearDistance) end) end
         end
     end
 end
 
 Tabs.Profiles:Dropdown({
-    Title = "Active Profile",
-    Desc = "Select which side to configure",
-    Values = { "Enemy", "Teammate" },
-    Value = SelectedSide,
-    Callback = function(Value)
-        SelectedSide = Value
-        RefreshSideControls()
-    end,
+    Title = "Active Profile", Desc = "Select which side to configure",
+    Values = { "Enemy", "Teammate" }, Value = SelectedSide,
+    Callback = function(V) SelectedSide = V; RefreshSideControls() end,
 })
 
-local SideSection = Tabs.Profiles:Section({
-    Title = "Elements",
-    Icon = "layers-3",
-    Opened = true,
-    Box = true,
-})
+local SideSection = Tabs.Profiles:Section({ Title = "Elements", Icon = "layers-3", Opened = true, Box = true })
 
 local function CreateSideControl(Name, Title, Description)
     SideControls[Name] = {}
-
     SideControls[Name].Enabled = SideSection:Toggle({
-        Title = Title,
-        Desc = Description,
-        Value = SideSettings.Enemy[Name].Enabled,
-        Callback = function(Value)
-            SideSettings[SelectedSide][Name].Enabled = Value
-        end,
+        Title = Title, Desc = Description, Value = SideSettings.Enemy[Name].Enabled,
+        Callback = function(V) SideSettings[SelectedSide][Name].Enabled = V end,
     })
-
     SideControls[Name].NearDisable = SideSection:Toggle({
-        Title = "Disable " .. Title .. " Near",
-        Desc = "Hide this element when player is within close range",
-        Value = SideSettings.Enemy[Name].NearDisable,
-        Callback = function(Value)
-            SideSettings[SelectedSide][Name].NearDisable = Value
-        end,
+        Title = "Disable " .. Title .. " Near", Desc = "Hide at close range", Value = SideSettings.Enemy[Name].NearDisable,
+        Callback = function(V) SideSettings[SelectedSide][Name].NearDisable = V end,
     })
-
     SideControls[Name].NearDistance = SideSection:Slider({
-        Title = Title .. " Near Distance",
-        Desc = "Elements hidden below this distance (in studs)",
-        Value = {
-            Min = MIN_NEAR_DISTANCE,
-            Max = MAX_NEAR_DISTANCE,
-            Default = SideSettings.Enemy[Name].NearDistance,
-        },
-        Step = 1,
-        Callback = function(Value)
-            SideSettings[SelectedSide][Name].NearDistance = Value
-        end,
+        Title = Title .. " Near Distance", Desc = "Disable below this distance",
+        Value = { Min = MIN_NEAR_DISTANCE, Max = MAX_NEAR_DISTANCE, Default = SideSettings.Enemy[Name].NearDistance },
+        Step = 1, Callback = function(V) SideSettings[SelectedSide][Name].NearDistance = V end,
     })
-
     SideSection:Divider()
 end
 
-CreateSideControl("Highlight", "Highlight", "Body part highlight overlay")
+CreateSideControl("Highlight", "Highlight", "Body part highlight")
 CreateSideControl("Box", "2D Box", "Screen-space rectangle")
 CreateSideControl("Box3D", "3D Box", "3D wireframe cube")
-CreateSideControl("Tracer", "Tracer", "Line from origin to player")
-CreateSideControl("Name", "Name", "Player display name")
+CreateSideControl("Tracer", "Tracer", "Line to player")
+CreateSideControl("Name", "Name", "Player name")
 CreateSideControl("Distance", "Distance", "Distance in studs")
-CreateSideControl("Height", "Height", "Y-coordinate elevation")
+CreateSideControl("Height", "Height", "Y-coordinate")
 
-local ProfilesResetSection = Tabs.Profiles:Section({
-    Title = "Reset",
-    Icon = "rotate-ccw",
-    Opened = true,
-    Box = true,
-})
-
+local ProfilesResetSection = Tabs.Profiles:Section({ Title = "Reset", Icon = "rotate-ccw", Opened = true, Box = true })
 ProfilesResetSection:Divider()
-
 ProfilesResetSection:Button({
-    Title = "Reset Profiles",
-    Desc = "Restore both Enemy and Teammate profiles to defaults",
-    Icon = "rotate-ccw",
-    Callback = function()
-        ResetSideSettings()
-        RefreshSideControls()
-        WindUI:Notify({
-            Title = "Profiles Reset",
-            Content = "Enemy and Teammate profiles restored",
-            Icon = "check",
-            Duration = 2,
-        })
-    end,
+    Title = "Reset Profiles", Desc = "Restore both profiles", Icon = "rotate-ccw",
+    Callback = function() ResetSideSettings(); RefreshSideControls(); WindUI:Notify({ Title = "Profiles Reset", Content = "Restored", Icon = "check", Duration = 2 }) end,
 })
 
 -- ═══════════════════════════════════════════════════════════
 -- TEXT TAB
 -- ═══════════════════════════════════════════════════════════
 
-Tabs.Text:Paragraph({
-    Title = "Text Settings",
-    Desc = "Configure name, distance and height text appearance.",
-    Image = "type",
-    ImageSize = 20,
-})
+Tabs.Text:Paragraph({ Title = "Text Settings", Desc = "Configure text appearance.", Image = "type", ImageSize = 20 })
 
-local TextModeSection = Tabs.Text:Section({
-    Title = "Mode",
-    Icon = "sliders-horizontal",
-    Opened = true,
-    Box = true,
-})
+local TextModeSection = Tabs.Text:Section({ Title = "Mode", Icon = "sliders-horizontal", Opened = true, Box = true })
+TextModeSection:Dropdown({ Title = "Text Mode", Desc = "Standard or Dynamic sizing", Values = { "Standard", "Dynamic" }, Value = Settings.TextMode, Callback = function(V) Settings.TextMode = V end })
+TextModeSection:Dropdown({ Title = "Dynamic Mode", Desc = "Far Bigger or Far Smaller", Values = { "Far Bigger", "Far Smaller" }, Value = Settings.DynamicTextMode, Callback = function(V) Settings.DynamicTextMode = V end })
 
-TextModeSection:Dropdown({
-    Title = "Text Mode",
-    Desc = "Standard: fixed size. Dynamic: size scales with distance.",
-    Values = { "Standard", "Dynamic" },
-    Value = Settings.TextMode,
-    Callback = function(Value) Settings.TextMode = Value end,
-})
+local BasicTextSection = Tabs.Text:Section({ Title = "Standard Sizes", Icon = "text-cursor-input", Opened = true, Box = true })
+BasicTextSection:Slider({ Title = "Name Size", Desc = "Font size", Value = { Min = MIN_NAME_SIZE, Max = MAX_NAME_SIZE, Default = DEFAULT_NAME_SIZE }, Step = 1, Callback = function(V) Settings.NameSize = V end })
+BasicTextSection:Slider({ Title = "Distance Size", Desc = "Font size", Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = DEFAULT_DISTANCE_SIZE }, Step = 1, Callback = function(V) Settings.DistanceSize = V end })
+BasicTextSection:Slider({ Title = "Height Size", Desc = "Font size", Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = DEFAULT_DISTANCE_SIZE }, Step = 1, Callback = function(V) Settings.HeightSize = V end })
 
-TextModeSection:Dropdown({
-    Title = "Dynamic Mode",
-    Desc = "Far Bigger: text grows with distance. Far Smaller: text shrinks with distance.",
-    Values = { "Far Bigger", "Far Smaller" },
-    Value = Settings.DynamicTextMode,
-    Callback = function(Value) Settings.DynamicTextMode = Value end,
-})
+local DynamicSection = Tabs.Text:Section({ Title = "Dynamic Size", Icon = "move-diagonal-2", Opened = true, Box = true })
+DynamicSection:Slider({ Title = "Curve", Desc = "Size transition aggressiveness", Value = { Min = MIN_TEXT_CURVE, Max = MAX_TEXT_CURVE, Default = DEFAULT_TEXT_CURVE }, Step = 0.05, Callback = function(V) Settings.DynamicTextCurve = V end })
+DynamicSection:Slider({ Title = "Name Minimum", Desc = "Min dynamic name size", Value = { Min = MIN_NAME_SIZE, Max = MAX_NAME_SIZE, Default = MIN_NAME_SIZE }, Step = 1, Callback = function(V) Settings.NameMinSize = V end })
+DynamicSection:Slider({ Title = "Name Maximum", Desc = "Max dynamic name size", Value = { Min = MIN_NAME_SIZE, Max = MAX_NAME_SIZE, Default = MAX_NAME_SIZE }, Step = 1, Callback = function(V) Settings.NameMaxSize = V end })
+DynamicSection:Slider({ Title = "Distance Minimum", Desc = "Min dynamic distance size", Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = MIN_DISTANCE_SIZE }, Step = 1, Callback = function(V) Settings.DistanceMinSize = V end })
+DynamicSection:Slider({ Title = "Distance Maximum", Desc = "Max dynamic distance size", Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = MAX_DISTANCE_SIZE }, Step = 1, Callback = function(V) Settings.DistanceMaxSize = V end })
 
-local BasicTextSection = Tabs.Text:Section({
-    Title = "Standard Sizes",
-    Icon = "text-cursor-input",
-    Opened = true,
-    Box = true,
-})
-
-BasicTextSection:Slider({
-    Title = "Name Size",
-    Desc = "Font size for player names",
-    Value = { Min = MIN_NAME_SIZE, Max = MAX_NAME_SIZE, Default = DEFAULT_NAME_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.NameSize = Value end,
-})
-
-BasicTextSection:Slider({
-    Title = "Distance Size",
-    Desc = "Font size for distance text",
-    Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = DEFAULT_DISTANCE_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.DistanceSize = Value end,
-})
-
-BasicTextSection:Slider({
-    Title = "Height Size",
-    Desc = "Font size for height text",
-    Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = DEFAULT_DISTANCE_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.HeightSize = Value end,
-})
-
-local DynamicSection = Tabs.Text:Section({
-    Title = "Dynamic Size",
-    Icon = "move-diagonal-2",
-    Opened = true,
-    Box = true,
-})
-
-DynamicSection:Slider({
-    Title = "Curve",
-    Desc = "Controls how aggressively size changes with distance",
-    Value = { Min = MIN_TEXT_CURVE, Max = MAX_TEXT_CURVE, Default = DEFAULT_TEXT_CURVE },
-    Step = 0.05,
-    Callback = function(Value) Settings.DynamicTextCurve = Value end,
-})
-
-DynamicSection:Slider({
-    Title = "Name Minimum",
-    Desc = "Minimum dynamic name size",
-    Value = { Min = MIN_NAME_SIZE, Max = MAX_NAME_SIZE, Default = MIN_NAME_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.NameMinSize = Value end,
-})
-
-DynamicSection:Slider({
-    Title = "Name Maximum",
-    Desc = "Maximum dynamic name size",
-    Value = { Min = MIN_NAME_SIZE, Max = MAX_NAME_SIZE, Default = MAX_NAME_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.NameMaxSize = Value end,
-})
-
-DynamicSection:Slider({
-    Title = "Distance Minimum",
-    Desc = "Minimum dynamic distance size",
-    Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = MIN_DISTANCE_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.DistanceMinSize = Value end,
-})
-
-DynamicSection:Slider({
-    Title = "Distance Maximum",
-    Desc = "Maximum dynamic distance size",
-    Value = { Min = MIN_DISTANCE_SIZE, Max = MAX_DISTANCE_SIZE, Default = MAX_DISTANCE_SIZE },
-    Step = 1,
-    Callback = function(Value) Settings.DistanceMaxSize = Value end,
-})
-
-local TextResetSection = Tabs.Text:Section({
-    Title = "Reset",
-    Icon = "rotate-ccw",
-    Opened = true,
-    Box = true,
-})
-
+local TextResetSection = Tabs.Text:Section({ Title = "Reset", Icon = "rotate-ccw", Opened = true, Box = true })
 TextResetSection:Divider()
-
 TextResetSection:Button({
-    Title = "Reset Text",
-    Desc = "Restore text settings to defaults",
-    Icon = "rotate-ccw",
+    Title = "Reset Text", Desc = "Restore text settings", Icon = "rotate-ccw",
     Callback = function()
-        for _, Key in ipairs({
-            "NameSize", "DistanceSize", "HeightSize",
-            "TextMode", "DynamicTextMode", "DynamicTextCurve",
-            "NameMinSize", "NameMaxSize", "DistanceMinSize", "DistanceMaxSize",
-        }) do
+        for _, Key in ipairs({ "NameSize", "DistanceSize", "HeightSize", "TextMode", "DynamicTextMode", "DynamicTextCurve", "NameMinSize", "NameMaxSize", "DistanceMinSize", "DistanceMaxSize" }) do
             Settings[Key] = DEFAULT_SETTINGS[Key]
         end
-        WindUI:Notify({
-            Title = "Text Reset",
-            Content = "Text settings restored",
-            Icon = "check",
-            Duration = 2,
-        })
+        WindUI:Notify({ Title = "Text Reset", Content = "Restored", Icon = "check", Duration = 2 })
     end,
 })
 
@@ -924,205 +434,73 @@ TextResetSection:Button({
 -- COLORS TAB
 -- ═══════════════════════════════════════════════════════════
 
-Tabs.Colors:Paragraph({
-    Title = "ESP Colors",
-    Desc = "Customize every color independently. 3D boxes use the same colors as 2D boxes.",
-    Image = "palette",
-    ImageSize = 20,
-})
+Tabs.Colors:Paragraph({ Title = "ESP Colors", Desc = "3D boxes share 2D box colors.", Image = "palette", ImageSize = 20 })
 
 local function CreateColorPicker(Parent, Title, Description, Key)
-    Parent:Colorpicker({
-        Title = Title,
-        Desc = Description,
-        Default = Colors[Key],
-        Transparency = 0,
-        Callback = function(Color)
-            if typeof(Color) == "Color3" then
-                Colors[Key] = Color
-            end
-        end,
-    })
+    Parent:Colorpicker({ Title = Title, Desc = Description, Default = Colors[Key], Transparency = 0, Callback = function(C) if typeof(C) == "Color3" then Colors[Key] = C end end })
 end
 
--- Highlight Colors
-local HighlightColors = Tabs.Colors:Section({
-    Title = "Highlight",
-    Icon = "eye",
-    Opened = true,
-    Box = true,
-})
+local HighlightColors = Tabs.Colors:Section({ Title = "Highlight", Icon = "eye", Opened = true, Box = true })
+CreateColorPicker(HighlightColors, "Enemy Visible", "Visible enemy", "EnemyVisible")
+CreateColorPicker(HighlightColors, "Enemy Behind Wall", "Hidden enemy", "EnemyHidden")
+CreateColorPicker(HighlightColors, "Teammate Visible", "Visible teammate", "TeamVisible")
+CreateColorPicker(HighlightColors, "Teammate Behind Wall", "Hidden teammate", "TeamHidden")
 
-CreateColorPicker(HighlightColors, "Enemy Visible", "Visible enemy highlight", "EnemyVisible")
-CreateColorPicker(HighlightColors, "Enemy Behind Wall", "Hidden enemy highlight", "EnemyHidden")
-CreateColorPicker(HighlightColors, "Teammate Visible", "Visible teammate highlight", "TeamVisible")
-CreateColorPicker(HighlightColors, "Teammate Behind Wall", "Hidden teammate highlight", "TeamHidden")
+local TextColors = Tabs.Colors:Section({ Title = "Text", Icon = "type", Opened = true, Box = true })
+CreateColorPicker(TextColors, "Enemy Name", "Enemy name", "EnemyName")
+CreateColorPicker(TextColors, "Teammate Name", "Teammate name", "TeamName")
+CreateColorPicker(TextColors, "Enemy Distance", "Enemy distance", "EnemyDistance")
+CreateColorPicker(TextColors, "Teammate Distance", "Teammate distance", "TeamDistance")
 
--- Text Colors
-local TextColors = Tabs.Colors:Section({
-    Title = "Text",
-    Icon = "type",
-    Opened = true,
-    Box = true,
-})
-
-CreateColorPicker(TextColors, "Enemy Name", "Enemy name text color", "EnemyName")
-CreateColorPicker(TextColors, "Teammate Name", "Teammate name text color", "TeamName")
-CreateColorPicker(TextColors, "Enemy Distance", "Enemy distance text color", "EnemyDistance")
-CreateColorPicker(TextColors, "Teammate Distance", "Teammate distance text color", "TeamDistance")
-
--- Box Colors (shared 2D + 3D)
-local BoxColors = Tabs.Colors:Section({
-    Title = "2D & 3D Boxes",
-    Icon = "square",
-    Opened = true,
-    Box = true,
-})
-
+local BoxColors = Tabs.Colors:Section({ Title = "2D & 3D Boxes", Icon = "square", Opened = true, Box = true })
 CreateColorPicker(BoxColors, "Enemy Visible", "Visible enemy box", "EnemyBoxVisible")
 CreateColorPicker(BoxColors, "Enemy Behind Wall", "Hidden enemy box", "EnemyBoxHidden")
 CreateColorPicker(BoxColors, "Teammate Visible", "Visible teammate box", "TeamBoxVisible")
 CreateColorPicker(BoxColors, "Teammate Behind Wall", "Hidden teammate box", "TeamBoxHidden")
 
--- Tracer Colors
-local TracerColors = Tabs.Colors:Section({
-    Title = "Tracers",
-    Icon = "move",
-    Opened = true,
-    Box = true,
-})
-
+local TracerColors = Tabs.Colors:Section({ Title = "Tracers", Icon = "move", Opened = true, Box = true })
 CreateColorPicker(TracerColors, "Enemy Visible", "Visible enemy tracer", "EnemyTracerVisible")
 CreateColorPicker(TracerColors, "Enemy Behind Wall", "Hidden enemy tracer", "EnemyTracerHidden")
 CreateColorPicker(TracerColors, "Teammate Visible", "Visible teammate tracer", "TeamTracerVisible")
 CreateColorPicker(TracerColors, "Teammate Behind Wall", "Hidden teammate tracer", "TeamTracerHidden")
 
--- Misc Colors
-local MiscColors = Tabs.Colors:Section({
-    Title = "Misc",
-    Icon = "settings-2",
-    Opened = true,
-    Box = true,
-})
+local MiscColors = Tabs.Colors:Section({ Title = "Misc", Icon = "settings-2", Opened = true, Box = true })
+CreateColorPicker(MiscColors, "Group Count", "Box grouping count label color", "GroupCount")
 
-CreateColorPicker(MiscColors, "Group Count", "Text color for box grouping count label", "GroupCount")
-
--- Reset Colors
-local ColorsResetSection = Tabs.Colors:Section({
-    Title = "Reset",
-    Icon = "rotate-ccw",
-    Opened = true,
-    Box = true,
-})
-
+local ColorsResetSection = Tabs.Colors:Section({ Title = "Reset", Icon = "rotate-ccw", Opened = true, Box = true })
 ColorsResetSection:Divider()
-
-ColorsResetSection:Button({
-    Title = "Reset Colors",
-    Desc = "Restore all colors to defaults",
-    Icon = "rotate-ccw",
-    Callback = function()
-        ResetColors()
-        WindUI:Notify({
-            Title = "Colors Reset",
-            Content = "All colors restored",
-            Icon = "check",
-            Duration = 2,
-        })
-    end,
-})
+ColorsResetSection:Button({ Title = "Reset Colors", Desc = "Restore all colors", Icon = "rotate-ccw", Callback = function() ResetColors(); WindUI:Notify({ Title = "Colors Reset", Content = "Restored", Icon = "check", Duration = 2 }) end })
 
 -- ═══════════════════════════════════════════════════════════
 -- SETTINGS TAB
 -- ═══════════════════════════════════════════════════════════
 
-Tabs.Settings:Paragraph({
-    Title = "Interface",
-    Desc = "Customize the interface theme and perform a complete reset.",
-    Image = "settings",
-    ImageSize = 20,
-})
+Tabs.Settings:Paragraph({ Title = "Interface", Desc = "Theme and reset.", Image = "settings", ImageSize = 20 })
 
-local AppearanceSection = Tabs.Settings:Section({
-    Title = "Appearance",
-    Icon = "palette",
-    Opened = true,
-    Box = true,
-})
+local AppearanceTabSection = Tabs.Settings:Section({ Title = "Appearance", Icon = "palette", Opened = true, Box = true })
 
 local Themes = {}
-for ThemeName in pairs(WindUI:GetThemes()) do
-    table.insert(Themes, ThemeName)
-end
+for ThemeName in pairs(WindUI:GetThemes()) do table.insert(Themes, ThemeName) end
 table.sort(Themes)
 
-local ThemeDropdown = AppearanceSection:Dropdown({
-    Title = "Theme",
-    Desc = "Choose interface color theme",
-    Values = Themes,
-    Value = "Dark",
-    SearchBarEnabled = true,
-    MenuWidth = 280,
-    Callback = function(Theme)
-        if Theme then WindUI:SetTheme(Theme) end
-    end,
-})
+local ThemeDropdown = AppearanceTabSection:Dropdown({ Title = "Theme", Desc = "Interface color theme", Values = Themes, Value = "Dark", SearchBarEnabled = true, MenuWidth = 280, Callback = function(T) if T then WindUI:SetTheme(T) end end })
 
-AppearanceSection:Button({
-    Title = "Reset Theme",
-    Desc = "Return to Dark theme",
-    Icon = "rotate-ccw",
-    Callback = function()
-        WindUI:SetTheme("Dark")
-        if ThemeDropdown and ThemeDropdown.Select then
-            ThemeDropdown:Select("Dark")
-        end
-    end,
-})
+AppearanceTabSection:Button({ Title = "Reset Theme", Desc = "Return to Dark", Icon = "rotate-ccw", Callback = function() WindUI:SetTheme("Dark"); if ThemeDropdown and ThemeDropdown.Select then ThemeDropdown:Select("Dark") end end })
 
-local ResetAllSection = Tabs.Settings:Section({
-    Title = "Complete Reset",
-    Icon = "refresh-cw",
-    Opened = true,
-    Box = true,
-})
-
-ResetAllSection:Paragraph({
-    Title = "Reset Everything",
-    Desc = "Restore ESP, profiles, colors, text and interface theme to defaults.",
-    Image = "info",
-    ImageSize = 18,
-})
-
+local ResetAllSection = Tabs.Settings:Section({ Title = "Complete Reset", Icon = "refresh-cw", Opened = true, Box = true })
+ResetAllSection:Paragraph({ Title = "Reset Everything", Desc = "Restore all settings to defaults.", Image = "info", ImageSize = 18 })
 ResetAllSection:Divider()
-
 ResetAllSection:Button({
-    Title = "Reset All",
-    Desc = "Restore the complete configuration",
-    Icon = "refresh-cw",
+    Title = "Reset All", Desc = "Restore the complete configuration", Icon = "refresh-cw",
     Callback = function()
-        ResetSettings()
-        ResetColors()
-        ResetSideSettings()
-        RefreshSideControls()
-
+        ResetSettings(); ResetColors(); ResetSideSettings(); RefreshSideControls()
         for _, Data in pairs(ESPObjects) do
             ClearHighlights(Data)
-            Data.HighlightMode = nil
-            Data.Visibility = nil
+            Data.HighlightMode = nil; Data.Visibility = nil; Data.DisplayBounds = nil
         end
-
         WindUI:SetTheme("Dark")
-        if ThemeDropdown and ThemeDropdown.Select then
-            ThemeDropdown:Select("Dark")
-        end
-
-        WindUI:Notify({
-            Title = "Everything Reset",
-            Content = "All settings restored to defaults",
-            Icon = "check",
-            Duration = 2,
-        })
+        if ThemeDropdown and ThemeDropdown.Select then ThemeDropdown:Select("Dark") end
+        WindUI:Notify({ Title = "Everything Reset", Content = "All settings restored", Icon = "check", Duration = 2 })
     end,
 })
 
@@ -1138,14 +516,11 @@ ESPGui.DisplayOrder = 999999
 ESPGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ESPGui.Parent = PlayerGui
 
--- Count label pool for box grouping
 local CountLabelPool = {}
 
 local function GetCountLabel()
     for _, label in ipairs(CountLabelPool) do
-        if not label.Visible then
-            return label
-        end
+        if not label.Visible then return label end
     end
     local label = Instance.new("TextLabel")
     label.Name = "GroupCount"
@@ -1183,9 +558,7 @@ local BodyPartNames = {
 
 local function GetCharacter(Player)
     local Character = Player.Character
-    if Character and Character.Parent then
-        return Character
-    end
+    if Character and Character.Parent then return Character end
     return nil
 end
 
@@ -1194,10 +567,7 @@ local function GetRoot(Character)
 end
 
 local function GetSide(Player)
-    if Settings.TeamCheck
-        and LocalPlayer.Team
-        and Player.Team
-        and LocalPlayer.Team == Player.Team then
+    if Settings.TeamCheck and LocalPlayer.Team and Player.Team and LocalPlayer.Team == Player.Team then
         return "Teammate"
     end
     return "Enemy"
@@ -1205,11 +575,8 @@ end
 
 local function IsFeatureEnabled(Side, Feature, Distance)
     local Data = SideSettings[Side][Feature]
-    if not Data then return false end
-    if not Data.Enabled then return false end
-    if Data.NearDisable and Distance <= Data.NearDistance then
-        return false
-    end
+    if not Data or not Data.Enabled then return false end
+    if Data.NearDisable and Distance <= Data.NearDistance then return false end
     return true
 end
 
@@ -1217,9 +584,7 @@ local function GetBodyParts(Character)
     local Parts = {}
     for _, Name in ipairs(BodyPartNames) do
         local Part = Character:FindFirstChild(Name)
-        if Part and Part:IsA("BasePart") then
-            Parts[#Parts + 1] = Part
-        end
+        if Part and Part:IsA("BasePart") then Parts[#Parts + 1] = Part end
     end
     return Parts
 end
@@ -1251,22 +616,16 @@ local function GetVisibility(Character, Distance)
         return { AnyVisible = true, Parts = {}, UseBodyParts = false }
     end
     local Origin = GetRayOrigin()
-    if not Origin then
-        return { AnyVisible = false, Parts = {}, UseBodyParts = false }
-    end
+    if not Origin then return { AnyVisible = false, Parts = {}, UseBodyParts = false } end
     local Parts = GetBodyParts(Character)
     local UseBodyParts = Settings.BodyPartRaycast
         and (not Settings.BodyPartRaycastFallback or Distance <= Settings.BodyPartRaycastDistance)
-
     if not UseBodyParts then
         local Root = GetRoot(Character)
-        if not Root then
-            return { AnyVisible = false, Parts = {}, UseBodyParts = false }
-        end
+        if not Root then return { AnyVisible = false, Parts = {}, UseBodyParts = false } end
         local Visible = IsPartVisible(Character, Root, Origin)
         return { AnyVisible = Visible, Parts = { [Root] = Visible }, UseBodyParts = false }
     end
-
     local VisibleParts = {}
     local AnyVisible = false
     for _, Part in ipairs(Parts) do
@@ -1279,37 +638,20 @@ end
 
 -- Color functions
 local function GetHighlightColor(Player, Visible)
-    if GetSide(Player) == "Teammate" then
-        return Visible and Colors.TeamVisible or Colors.TeamHidden
-    end
+    if GetSide(Player) == "Teammate" then return Visible and Colors.TeamVisible or Colors.TeamHidden end
     return Visible and Colors.EnemyVisible or Colors.EnemyHidden
 end
-
-local function GetNameColor(Player)
-    return GetSide(Player) == "Teammate" and Colors.TeamName or Colors.EnemyName
-end
-
-local function GetDistanceColor(Player)
-    return GetSide(Player) == "Teammate" and Colors.TeamDistance or Colors.EnemyDistance
-end
-
+local function GetNameColor(Player) return GetSide(Player) == "Teammate" and Colors.TeamName or Colors.EnemyName end
+local function GetDistanceColor(Player) return GetSide(Player) == "Teammate" and Colors.TeamDistance or Colors.EnemyDistance end
 local function GetBoxColor(Player, Visible)
-    if GetSide(Player) == "Teammate" then
-        return Visible and Colors.TeamBoxVisible or Colors.TeamBoxHidden
-    end
+    if GetSide(Player) == "Teammate" then return Visible and Colors.TeamBoxVisible or Colors.TeamBoxHidden end
     return Visible and Colors.EnemyBoxVisible or Colors.EnemyBoxHidden
 end
-
 local function GetTracerColor(Player, Visible)
-    if GetSide(Player) == "Teammate" then
-        return Visible and Colors.TeamTracerVisible or Colors.TeamTracerHidden
-    end
+    if GetSide(Player) == "Teammate" then return Visible and Colors.TeamTracerVisible or Colors.TeamTracerHidden end
     return Visible and Colors.EnemyTracerVisible or Colors.EnemyTracerHidden
 end
-
-local function GetHeightColor(Player)
-    return GetDistanceColor(Player)
-end
+local function GetHeightColor(Player) return GetDistanceColor(Player) end
 
 -- Dynamic text sizing
 local function GetDynamicSize(Distance, MinSize, MaxSize)
@@ -1322,31 +664,30 @@ local function GetDynamicSize(Distance, MinSize, MaxSize)
     end
     return math.floor(MaxSize - (MaxSize - MinSize) * Progress + 0.5)
 end
+local function GetNameSize(Distance) return GetDynamicSize(Distance, Settings.NameMinSize, Settings.NameMaxSize) or Settings.NameSize end
+local function GetDistanceSize(Distance) return GetDynamicSize(Distance, Settings.DistanceMinSize, Settings.DistanceMaxSize) or Settings.DistanceSize end
+local function GetHeightSize(Distance) return GetDynamicSize(Distance, Settings.DistanceMinSize, Settings.DistanceMaxSize) or Settings.HeightSize end
 
-local function GetNameSize(Distance)
-    return GetDynamicSize(Distance, Settings.NameMinSize, Settings.NameMaxSize) or Settings.NameSize
-end
-
-local function GetDistanceSize(Distance)
-    return GetDynamicSize(Distance, Settings.DistanceMinSize, Settings.DistanceMaxSize) or Settings.DistanceSize
-end
-
-local function GetHeightSize(Distance)
-    return GetDynamicSize(Distance, Settings.DistanceMinSize, Settings.DistanceMaxSize) or Settings.HeightSize
-end
-
--- 3D box corner calculation
-local function GetBoxCorners(cf, size)
-    local hx, hy, hz = size.X / 2, size.Y / 2, size.Z / 2
+-- 3D box corners: manual calculation from root CFrame (reliable, no GetBoundingBox)
+local function Get3DCorners(Character)
+    local root = GetRoot(Character)
+    if not root then return nil end
+    local humanoid = Character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return nil end
+    local height = math.clamp(humanoid.HipHeight + 5, 4, 7)
+    local width = 3
+    local depth = 1.5
+    local centerCF = root.CFrame * CFrame.new(0, height / 2 - 1, 0)
+    local hx, hy, hz = width / 2, height / 2, depth / 2
     return {
-        cf:PointToWorldSpace(Vector3.new(-hx, -hy, -hz)), -- 1
-        cf:PointToWorldSpace(Vector3.new( hx, -hy, -hz)), -- 2
-        cf:PointToWorldSpace(Vector3.new(-hx, -hy,  hz)), -- 3
-        cf:PointToWorldSpace(Vector3.new( hx, -hy,  hz)), -- 4
-        cf:PointToWorldSpace(Vector3.new(-hx,  hy, -hz)), -- 5
-        cf:PointToWorldSpace(Vector3.new( hx,  hy, -hz)), -- 6
-        cf:PointToWorldSpace(Vector3.new(-hx,  hy,  hz)), -- 7
-        cf:PointToWorldSpace(Vector3.new( hx,  hy,  hz)), -- 8
+        (centerCF * CFrame.new(-hx, -hy, -hz)).Position,
+        (centerCF * CFrame.new( hx, -hy, -hz)).Position,
+        (centerCF * CFrame.new(-hx, -hy,  hz)).Position,
+        (centerCF * CFrame.new( hx, -hy,  hz)).Position,
+        (centerCF * CFrame.new(-hx,  hy, -hz)).Position,
+        (centerCF * CFrame.new( hx,  hy, -hz)).Position,
+        (centerCF * CFrame.new(-hx,  hy,  hz)).Position,
+        (centerCF * CFrame.new( hx,  hy,  hz)).Position,
     }
 end
 
@@ -1363,7 +704,6 @@ local function CreateBox()
     Box.Active = false
     Box.ZIndex = 10
     Box.Parent = ESPGui
-
     local Stroke = Instance.new("UIStroke")
     Stroke.Thickness = 1.5
     Stroke.Parent = Box
@@ -1415,13 +755,6 @@ local function SetBodyPartHighlight(Data, Part, Color)
     Highlight.OutlineColor = Color
 end
 
-local function BuildHighlights(Data, Character)
-    ClearHighlights(Data)
-    for _, Part in ipairs(GetBodyParts(Character)) do
-        Data.Highlights[Part] = CreateHighlight(Part)
-    end
-end
-
 -- ═══════════════════════════════════════════════════════════
 -- BOUNDS CALCULATION
 -- ═══════════════════════════════════════════════════════════
@@ -1435,7 +768,6 @@ local function GetPerformanceBounds(Character)
     if Position.Z <= 0 or not OnScreen then return nil end
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     if not Humanoid then return nil end
-
     local Height = math.clamp(Humanoid.HipHeight * 2 + 5.6, 4.8, 11.5)
     local Width = Height * 0.52
     local Top = Camera:WorldToViewportPoint(Root.Position + Vector3.new(0, Height / 2, 0))
@@ -1452,7 +784,6 @@ local function GetAccurateBounds(Character)
     local MinX, MinY = math.huge, math.huge
     local MaxX, MaxY = -math.huge, -math.huge
     local Found = false
-
     for _, Part in ipairs(GetBodyParts(Character)) do
         local Half = Part.Size / 2
         for X = -1, 1, 2 do
@@ -1476,9 +807,7 @@ local function GetAccurateBounds(Character)
 end
 
 local function GetScreenBounds(Character)
-    if Settings.BoxMode == "Accurate" then
-        return GetAccurateBounds(Character)
-    end
+    if Settings.BoxMode == "Accurate" then return GetAccurateBounds(Character) end
     return GetPerformanceBounds(Character)
 end
 
@@ -1488,43 +817,29 @@ end
 
 local function GroupBoxes(boxes)
     if #boxes == 0 then return {} end
-
     local parent = {}
     for i = 1, #boxes do parent[i] = i end
-
     local function find(i)
-        while parent[i] ~= i do
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        end
+        while parent[i] ~= i do parent[i] = parent[parent[i]]; i = parent[i] end
         return i
     end
-
     local function union(i, j)
         local ri, rj = find(i), find(j)
         if ri ~= rj then parent[ri] = rj end
     end
-
     for i = 1, #boxes do
         for j = i + 1, #boxes do
             local a, b = boxes[i], boxes[j]
-            if a.minX <= b.maxX and b.minX <= a.maxX
-               and a.minY <= b.maxY and b.minY <= a.maxY then
+            if a.minX <= b.maxX and b.minX <= a.maxX and a.minY <= b.maxY and b.minY <= a.maxY then
                 union(i, j)
             end
         end
     end
-
     local groupMap = {}
     for i, box in ipairs(boxes) do
         local root = find(i)
         if not groupMap[root] then
-            groupMap[root] = {
-                boxes = {},
-                minX = box.minX, minY = box.minY,
-                maxX = box.maxX, maxY = box.maxY,
-                count = 0,
-            }
+            groupMap[root] = { boxes = {}, minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY, count = 0 }
         end
         local g = groupMap[root]
         g.boxes[#g.boxes + 1] = box
@@ -1534,11 +849,8 @@ local function GroupBoxes(boxes)
         g.maxY = math.max(g.maxY, box.maxY)
         g.count = g.count + 1
     end
-
     local groups = {}
-    for _, g in pairs(groupMap) do
-        groups[#groups + 1] = g
-    end
+    for _, g in pairs(groupMap) do groups[#groups + 1] = g end
     return groups
 end
 
@@ -1552,19 +864,10 @@ local function HideESP(Data)
     if Data.Distance then Data.Distance.Visible = false end
     if Data.Height then Data.Height.Visible = false end
     if Data.Box then Data.Box.Visible = false end
-
-    if Data.Box3DLines then
-        for _, line in ipairs(Data.Box3DLines) do
-            line.Visible = false
-        end
-    end
-    if Data.Tracer then
-        Data.Tracer.Visible = false
-    end
-
+    if Data.Box3DLines then for _, line in ipairs(Data.Box3DLines) do line.Visible = false end end
+    if Data.Tracer then Data.Tracer.Visible = false end
     Data.ScreenBounds = nil
     Data.BoxVisible = false
-
     ClearHighlights(Data)
     Data.HighlightMode = nil
 end
@@ -1572,7 +875,6 @@ end
 local function CreateESP(Player)
     if Player == LocalPlayer or ESPObjects[Player] then return end
 
-    -- Billboard for text
     local Billboard = Instance.new("BillboardGui")
     Billboard.Name = "PlayerESP"
     Billboard.Size = UDim2.fromOffset(220, 80)
@@ -1584,7 +886,6 @@ local function CreateESP(Player)
     Billboard.Enabled = false
     Billboard.Parent = PlayerGui
 
-    -- Name label
     local Name = Instance.new("TextLabel")
     Name.Name = "Name"
     Name.Size = UDim2.new(1, 0, 0, 30)
@@ -1593,14 +894,12 @@ local function CreateESP(Player)
     Name.Text = Player.DisplayName
     Name.TextColor3 = Colors.EnemyName
     Name.TextSize = Settings.NameSize
-    Name.TextTransparency = 0
     Name.TextStrokeTransparency = 0.35
     Name.TextXAlignment = Enum.TextXAlignment.Center
     Name.Font = Enum.Font.GothamBold
     Name.Visible = false
     Name.Parent = Billboard
 
-    -- Distance label
     local Distance = Instance.new("TextLabel")
     Distance.Name = "Distance"
     Distance.Size = UDim2.new(1, 0, 0, 20)
@@ -1608,14 +907,12 @@ local function CreateESP(Player)
     Distance.BackgroundTransparency = 1
     Distance.TextColor3 = Colors.EnemyDistance
     Distance.TextSize = Settings.DistanceSize
-    Distance.TextTransparency = 0
     Distance.TextStrokeTransparency = 0.5
     Distance.TextXAlignment = Enum.TextXAlignment.Center
     Distance.Font = Enum.Font.GothamMedium
     Distance.Visible = false
     Distance.Parent = Billboard
 
-    -- Height label
     local Height = Instance.new("TextLabel")
     Height.Name = "Height"
     Height.Size = UDim2.new(1, 0, 0, 20)
@@ -1623,54 +920,46 @@ local function CreateESP(Player)
     Height.BackgroundTransparency = 1
     Height.TextColor3 = Colors.EnemyDistance
     Height.TextSize = Settings.HeightSize
-    Height.TextTransparency = 0
     Height.TextStrokeTransparency = 0.5
     Height.TextXAlignment = Enum.TextXAlignment.Center
     Height.Font = Enum.Font.GothamMedium
     Height.Visible = false
     Height.Parent = Billboard
 
-    -- 2D box
     local Box, BoxStroke = CreateBox()
 
-    -- 3D box lines (lazy creation in Update3DBox)
+    -- 3D box lines: create with Transparency = 1 (visible in Drawing API)
     local Box3DLines = nil
     if HasDrawing then
         Box3DLines = {}
         for i = 1, 12 do
             local line = Drawing.new("Line")
             line.Thickness = 1
+            line.Transparency = 1
             line.Visible = false
             Box3DLines[i] = line
         end
     end
 
-    -- Tracer line
+    -- Tracer line: create with Transparency = 1
     local Tracer = nil
     if HasDrawing then
         Tracer = Drawing.new("Line")
         Tracer.Thickness = 1
+        Tracer.Transparency = 1
         Tracer.Visible = false
     end
 
     local Data = {
-        Billboard = Billboard,
-        Name = Name,
-        Distance = Distance,
-        Height = Height,
-        Box = Box,
-        BoxStroke = BoxStroke,
-        Box3DLines = Box3DLines,
-        Tracer = Tracer,
-        Highlights = {},
-        FullHighlight = nil,
-        Character = nil,
-        Connection = nil,
-        Visibility = nil,
-        HighlightMode = nil,
-        ScreenBounds = nil,
-        BoxColor = nil,
-        BoxVisible = false,
+        Billboard = Billboard, Name = Name, Distance = Distance, Height = Height,
+        Box = Box, BoxStroke = BoxStroke,
+        Box3DLines = Box3DLines, Tracer = Tracer,
+        Highlights = {}, FullHighlight = nil,
+        Character = nil, Connection = nil,
+        Visibility = nil, HighlightMode = nil,
+        ScreenBounds = nil, BoxColor = nil, BoxVisible = false,
+        DisplayBounds = nil,
+        Distance = 0, Side = "Enemy",
     }
 
     ESPObjects[Player] = Data
@@ -1688,7 +977,6 @@ local function CreateESP(Player)
         CurrentData.Name.Visible = false
         CurrentData.Distance.Visible = false
         CurrentData.Height.Visible = false
-
         local Root = GetRoot(Character)
         if Root then
             CurrentData.Billboard.Adornee = Root
@@ -1718,13 +1006,10 @@ end
 local function RemoveESP(Player)
     local Data = ESPObjects[Player]
     if not Data then return end
-
     if Data.Connection then Data.Connection:Disconnect() end
     ClearHighlights(Data)
-
     if Data.Billboard then Data.Billboard:Destroy() end
     if Data.Box then Data.Box:Destroy() end
-
     if Data.Box3DLines then
         for _, line in ipairs(Data.Box3DLines) do
             pcall(function() line:Remove() end)
@@ -1733,7 +1018,6 @@ local function RemoveESP(Player)
     if Data.Tracer then
         pcall(function() Data.Tracer:Remove() end)
     end
-
     ESPObjects[Player] = nil
 end
 
@@ -1743,22 +1027,14 @@ end
 
 local function UpdateHighlightBudget()
     if not Settings.ESP or not Settings.Highlight then
-        for _, Data in pairs(ESPObjects) do
-            ClearHighlights(Data)
-            Data.HighlightMode = nil
-        end
+        for _, Data in pairs(ESPObjects) do ClearHighlights(Data); Data.HighlightMode = nil end
         return
     end
-
     local MyRoot = GetRoot(LocalPlayer.Character)
     if not MyRoot then
-        for _, Data in pairs(ESPObjects) do
-            ClearHighlights(Data)
-            Data.HighlightMode = nil
-        end
+        for _, Data in pairs(ESPObjects) do ClearHighlights(Data); Data.HighlightMode = nil end
         return
     end
-
     local Candidates = {}
     for Player, Data in pairs(ESPObjects) do
         local Character = GetCharacter(Player)
@@ -1768,29 +1044,19 @@ local function UpdateHighlightBudget()
             if Humanoid and Humanoid.Health > 0 then
                 local Distance = (MyRoot.Position - Root.Position).Magnitude
                 local Side = GetSide(Player)
-                if Distance <= Settings.HighlightDistance
-                   and IsFeatureEnabled(Side, "Highlight", Distance) then
-                    local PartCount = #GetBodyParts(Character)
-                    Candidates[#Candidates + 1] = {
-                        Player = Player, Data = Data,
-                        Distance = Distance, PartCount = PartCount,
-                    }
+                if Distance <= Settings.HighlightDistance and IsFeatureEnabled(Side, "Highlight", Distance) then
+                    Candidates[#Candidates + 1] = { Player = Player, Data = Data, Distance = Distance, PartCount = #GetBodyParts(Character) }
                 else
-                    ClearHighlights(Data)
-                    Data.HighlightMode = nil
+                    ClearHighlights(Data); Data.HighlightMode = nil
                 end
             else
-                ClearHighlights(Data)
-                Data.HighlightMode = nil
+                ClearHighlights(Data); Data.HighlightMode = nil
             end
         else
-            ClearHighlights(Data)
-            Data.HighlightMode = nil
+            ClearHighlights(Data); Data.HighlightMode = nil
         end
     end
-
     table.sort(Candidates, function(A, B) return A.Distance < B.Distance end)
-
     local Remaining = MAX_HIGHLIGHT_BUDGET
     for _, Candidate in ipairs(Candidates) do
         if Candidate.PartCount > 0 and Candidate.PartCount <= Remaining then
@@ -1800,7 +1066,6 @@ local function UpdateHighlightBudget()
             Candidate.Data.HighlightMode = nil
         end
     end
-
     if Remaining > 0 then
         for Index = #Candidates, 1, -1 do
             local Candidate = Candidates[Index]
@@ -1811,97 +1076,54 @@ local function UpdateHighlightBudget()
             end
         end
     end
-
     for _, Candidate in ipairs(Candidates) do
-        if not Candidate.Data.HighlightMode then
-            ClearHighlights(Candidate.Data)
-        end
+        if not Candidate.Data.HighlightMode then ClearHighlights(Candidate.Data) end
     end
 end
 
 local function UpdateHighlights(Player, Data, Distance, Side, Visibility)
     local Mode = Data.HighlightMode
-    if not Mode or not Settings.Highlight
-       or Distance > Settings.HighlightDistance
-       or not IsFeatureEnabled(Side, "Highlight", Distance) then
-        ClearHighlights(Data)
-        Data.HighlightMode = nil
-        return
+    if not Mode or not Settings.Highlight or Distance > Settings.HighlightDistance or not IsFeatureEnabled(Side, "Highlight", Distance) then
+        ClearHighlights(Data); Data.HighlightMode = nil; return
     end
-
     if Mode == "Full" then
         local Color = GetHighlightColor(Player, Visibility.AnyVisible)
         SetFullHighlight(Data, Data.Character, Color)
-        for Part, Highlight in pairs(Data.Highlights) do
-            Highlight:Destroy()
-            Data.Highlights[Part] = nil
-        end
+        for Part, Highlight in pairs(Data.Highlights) do Highlight:Destroy(); Data.Highlights[Part] = nil end
         return
     end
-
-    if Data.FullHighlight then
-        Data.FullHighlight:Destroy()
-        Data.FullHighlight = nil
-    end
-
+    if Data.FullHighlight then Data.FullHighlight:Destroy(); Data.FullHighlight = nil end
     local ExistingParts = {}
     for _, Part in ipairs(GetBodyParts(Data.Character)) do
         ExistingParts[Part] = true
-        local Visible
-        if not Settings.VisibilityCheck then
-            Visible = true
-        elseif Visibility.UseBodyParts then
-            Visible = Visibility.Parts[Part] == true
-        else
-            Visible = Visibility.AnyVisible
-        end
-        local Color = GetHighlightColor(Player, Visible)
-        SetBodyPartHighlight(Data, Part, Color)
+        local Visible = not Settings.VisibilityCheck and true or (Visibility.UseBodyParts and Visibility.Parts[Part] == true or Visibility.AnyVisible)
+        SetBodyPartHighlight(Data, Part, GetHighlightColor(Player, Visible))
     end
-
     for Part, Highlight in pairs(Data.Highlights) do
-        if not ExistingParts[Part] or not Part.Parent then
-            Highlight:Destroy()
-            Data.Highlights[Part] = nil
-        end
+        if not ExistingParts[Part] or not Part.Parent then Highlight:Destroy(); Data.Highlights[Part] = nil end
     end
 end
 
-local function Update3DBox(Player, Data, Character, Distance, Side, Visibility)
+-- 3D box: uses manual corner calculation from root CFrame + Transparency = 1
+Update3DBox = function(Player, Data, Character, Distance, Side, Visibility)
     if not Data.Box3DLines then return end
-
-    if not Settings.Box3D or not Settings.ESP
-       or Distance > Settings.Box3DDistance
-       or not IsFeatureEnabled(Side, "Box3D", Distance) then
-        for _, line in ipairs(Data.Box3DLines) do
-            line.Visible = false
-        end
+    if not Settings.Box3D or not Settings.ESP or Distance > Settings.Box3DDistance or not IsFeatureEnabled(Side, "Box3D", Distance) then
+        for _, line in ipairs(Data.Box3DLines) do line.Visible = false end
         return
     end
-
-    local cf, size
-    local ok = pcall(function()
-        cf, size = Character:GetBoundingBox()
-    end)
-    if not ok or not cf then
-        for _, line in ipairs(Data.Box3DLines) do
-            line.Visible = false
-        end
+    local corners = Get3DCorners(Character)
+    if not corners then
+        for _, line in ipairs(Data.Box3DLines) do line.Visible = false end
         return
     end
-
     local Camera = workspace.CurrentCamera
     if not Camera then return end
-
-    local corners = GetBoxCorners(cf, size)
     local screenPos = {}
     for i = 1, 8 do
         local sp = Camera:WorldToViewportPoint(corners[i])
         screenPos[i] = { x = sp.X, y = sp.Y, z = sp.Z }
     end
-
     local color = GetBoxColor(Player, Visibility.AnyVisible)
-
     for i, edge in ipairs(EDGES_3D) do
         local p1 = screenPos[edge[1]]
         local p2 = screenPos[edge[2]]
@@ -1911,6 +1133,7 @@ local function Update3DBox(Player, Data, Character, Distance, Side, Visibility)
             line.To = Vector2.new(p2.x, p2.y)
             line.Color = color
             line.Thickness = Settings.Box3DThickness
+            line.Transparency = 1
             line.Visible = true
         else
             line.Visible = false
@@ -1918,31 +1141,19 @@ local function Update3DBox(Player, Data, Character, Distance, Side, Visibility)
     end
 end
 
-local function UpdateTracer(Player, Data, Distance, Side, Visibility)
+-- Tracer: Transparency = 1 on update
+UpdateTracer = function(Player, Data, Distance, Side, Visibility)
     if not Data.Tracer then return end
-
-    if not Settings.Tracers or not Settings.ESP
-       or Distance > Settings.TracerDistance
-       or not IsFeatureEnabled(Side, "Tracer", Distance) then
+    if not Settings.Tracers or not Settings.ESP or Distance > Settings.TracerDistance or not IsFeatureEnabled(Side, "Tracer", Distance) then
         Data.Tracer.Visible = false
         return
     end
-
     local Camera = workspace.CurrentCamera
     if not Camera then return end
-
     local root = GetRoot(Data.Character)
-    if not root then
-        Data.Tracer.Visible = false
-        return
-    end
-
+    if not root then Data.Tracer.Visible = false; return end
     local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
-    if not onScreen or screenPos.Z <= 0 then
-        Data.Tracer.Visible = false
-        return
-    end
-
+    if not onScreen or screenPos.Z <= 0 then Data.Tracer.Visible = false; return end
     local origin
     if Settings.TracerOrigin == "Center" then
         origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -1954,14 +1165,14 @@ local function UpdateTracer(Player, Data, Distance, Side, Visibility)
         else
             origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
         end
-    else -- Bottom
+    else
         origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
     end
-
     Data.Tracer.From = origin
     Data.Tracer.To = Vector2.new(screenPos.X, screenPos.Y)
     Data.Tracer.Color = GetTracerColor(Player, Visibility.AnyVisible)
     Data.Tracer.Thickness = Settings.TracerThickness
+    Data.Tracer.Transparency = 1
     Data.Tracer.Visible = true
 end
 
@@ -1974,95 +1185,51 @@ local function UpdateText(Player, Data, Distance, Side)
         if Data.Height then Data.Height.Visible = false end
         return
     end
-
-    local NameEnabled = Settings.ShowName
-        and Distance <= Settings.ESPDistance
-        and IsFeatureEnabled(Side, "Name", Distance)
-
-    local DistanceEnabled = Settings.ShowDistance
-        and Distance <= Settings.ESPDistance
-        and IsFeatureEnabled(Side, "Distance", Distance)
-
-    local HeightEnabled = Settings.ShowHeight
-        and Distance <= Settings.ESPDistance
-        and IsFeatureEnabled(Side, "Height", Distance)
-
+    local NameEnabled = Settings.ShowName and Distance <= Settings.ESPDistance and IsFeatureEnabled(Side, "Name", Distance)
+    local DistanceEnabled = Settings.ShowDistance and Distance <= Settings.ESPDistance and IsFeatureEnabled(Side, "Distance", Distance)
+    local HeightEnabled = Settings.ShowHeight and Distance <= Settings.ESPDistance and IsFeatureEnabled(Side, "Height", Distance)
     Data.Billboard.Adornee = Root
     Data.Billboard.MaxDistance = MAX_DISTANCE
     Data.Billboard.AlwaysOnTop = true
-
-    -- Name
     Data.Name.Text = Player.DisplayName
     Data.Name.TextSize = GetNameSize(Distance)
     Data.Name.TextColor3 = GetNameColor(Player)
     Data.Name.Visible = NameEnabled
-
-    -- Distance
     Data.Distance.TextSize = GetDistanceSize(Distance)
     Data.Distance.TextColor3 = GetDistanceColor(Player)
-    if DistanceEnabled then
-        Data.Distance.Text = tostring(math.floor(Distance + 0.5)) .. " studs"
-    else
-        Data.Distance.Text = ""
-    end
+    Data.Distance.Text = DistanceEnabled and (tostring(math.floor(Distance + 0.5)) .. " studs") or ""
     Data.Distance.Visible = DistanceEnabled
-
-    -- Height
     Data.Height.TextSize = GetHeightSize(Distance)
     Data.Height.TextColor3 = GetHeightColor(Player)
-    if HeightEnabled then
-        Data.Height.Text = string.format("Y: %.1f", Root.Position.Y)
-    else
-        Data.Height.Text = ""
-    end
+    Data.Height.Text = HeightEnabled and string.format("Y: %.1f", Root.Position.Y) or ""
     Data.Height.Visible = HeightEnabled
-
     Data.Billboard.Enabled = NameEnabled or DistanceEnabled or HeightEnabled
 end
 
+-- ═══════════════════════════════════════════════════════════
+-- ANIMATED BOX UPDATE (called every frame)
+-- ═══════════════════════════════════════════════════════════
+
 local function UpdateBoxes()
     -- Hide all count labels
-    for _, label in ipairs(CountLabelPool) do
-        label.Visible = false
-    end
+    for _, label in ipairs(CountLabelPool) do label.Visible = false end
 
     if not Settings.Boxes or not Settings.ESP then
         for _, data in pairs(ESPObjects) do
             if data.Box then data.Box.Visible = false end
+            data.DisplayBounds = nil
         end
         return
     end
 
-    -- No grouping: draw individual boxes
-    if not Settings.BoxGrouping then
-        for _, data in pairs(ESPObjects) do
-            if data.ScreenBounds and data.BoxVisible and data.Box then
-                local sb = data.ScreenBounds
-                data.Box.Position = UDim2.fromOffset(sb.minX, sb.minY)
-                data.Box.Size = UDim2.fromOffset(
-                    math.max(sb.maxX - sb.minX, 2),
-                    math.max(sb.maxY - sb.minY, 2)
-                )
-                data.BoxStroke.Color = data.BoxColor or Color3.fromRGB(255, 255, 255)
-                data.Box.Visible = true
-            elseif data.Box then
-                data.Box.Visible = false
-            end
-        end
-        return
-    end
-
-    -- Grouping enabled: collect visible boxes
+    -- Collect visible boxes
     local visibleBoxes = {}
     for player, data in pairs(ESPObjects) do
         if data.ScreenBounds and data.BoxVisible then
             visibleBoxes[#visibleBoxes + 1] = {
-                player = player,
-                data = data,
-                minX = data.ScreenBounds.minX,
-                minY = data.ScreenBounds.minY,
-                maxX = data.ScreenBounds.maxX,
-                maxY = data.ScreenBounds.maxY,
+                player = player, data = data,
+                minX = data.ScreenBounds.minX, minY = data.ScreenBounds.minY,
+                maxX = data.ScreenBounds.maxX, maxY = data.ScreenBounds.maxY,
             }
         end
     end
@@ -2074,85 +1241,115 @@ local function UpdateBoxes()
         return
     end
 
-    local groups = GroupBoxes(visibleBoxes)
+    -- Group
+    local groups
+    if Settings.BoxGrouping and #visibleBoxes > 1 then
+        groups = GroupBoxes(visibleBoxes)
+    else
+        groups = {}
+        for _, box in ipairs(visibleBoxes) do
+            groups[#groups + 1] = { boxes = { box }, minX = box.minX, minY = box.minY, maxX = box.maxX, maxY = box.maxY, count = 1 }
+        end
+    end
 
+    -- Process each group with lerp animation
     for _, group in ipairs(groups) do
-        if group.count > 1 then
-            -- Merged box: use first player's box frame
-            local first = group.boxes[1]
-            first.data.Box.Position = UDim2.fromOffset(group.minX, group.minY)
-            first.data.Box.Size = UDim2.fromOffset(
-                math.max(group.maxX - group.minX, 2),
-                math.max(group.maxY - group.minY, 2)
-            )
-            first.data.BoxStroke.Color = first.data.BoxColor or Colors.GroupCount
-            first.data.Box.Visible = true
+        local isMerged = group.count > 1
+        local primaryData = group.boxes[1].data
+        local targetMinX, targetMinY = group.minX, group.minY
+        local targetMaxX, targetMaxY = group.maxX, group.maxY
 
-            -- Hide other boxes in the group
-            for i = 2, #group.boxes do
-                if group.boxes[i].data.Box then
-                    group.boxes[i].data.Box.Visible = false
-                end
+        -- Initialize or lerp primary box
+        if not primaryData.DisplayBounds then
+            primaryData.DisplayBounds = { minX = targetMinX, minY = targetMinY, maxX = targetMaxX, maxY = targetMaxY }
+        else
+            local db = primaryData.DisplayBounds
+            db.minX = db.minX + (targetMinX - db.minX) * LERP_FACTOR
+            db.minY = db.minY + (targetMinY - db.minY) * LERP_FACTOR
+            db.maxX = db.maxX + (targetMaxX - db.maxX) * LERP_FACTOR
+            db.maxY = db.maxY + (targetMaxY - db.maxY) * LERP_FACTOR
+        end
+
+        local db = primaryData.DisplayBounds
+        if primaryData.Box then
+            primaryData.Box.Position = UDim2.fromOffset(db.minX, db.minY)
+            primaryData.Box.Size = UDim2.fromOffset(math.max(db.maxX - db.minX, 2), math.max(db.maxY - db.minY, 2))
+            if primaryData.BoxStroke then
+                primaryData.BoxStroke.Color = primaryData.BoxColor or Color3.fromRGB(255, 255, 255)
             end
+            primaryData.Box.Visible = true
+        end
 
-            -- Count label
+        -- Hide other boxes in group but keep their DisplayBounds lerping
+        for i = 2, #group.boxes do
+            local otherData = group.boxes[i].data
+            if otherData.Box then otherData.Box.Visible = false end
+            if not otherData.DisplayBounds then
+                otherData.DisplayBounds = { minX = targetMinX, minY = targetMinY, maxX = targetMaxX, maxY = targetMaxY }
+            else
+                local db2 = otherData.DisplayBounds
+                db2.minX = db2.minX + (targetMinX - db2.minX) * LERP_FACTOR
+                db2.minY = db2.minY + (targetMinY - db2.minY) * LERP_FACTOR
+                db2.maxX = db2.maxX + (targetMaxX - db2.maxX) * LERP_FACTOR
+                db2.maxY = db2.maxY + (targetMaxY - db2.maxY) * LERP_FACTOR
+            end
+        end
+
+        -- Count label for merged groups
+        if isMerged then
             local label = GetCountLabel()
-            label.Text = "\xC3\x97" .. group.count
-            label.Position = UDim2.fromOffset(
-                math.floor((group.minX + group.maxX) / 2),
-                math.floor(group.minY - 18)
-            )
+            label.Text = "x" .. group.count
+            label.Position = UDim2.fromOffset(math.floor((db.minX + db.maxX) / 2), math.floor(db.minY - 18))
             label.TextColor3 = Colors.GroupCount
             label.Visible = true
-        else
-            -- Individual box
-            local box = group.boxes[1]
-            if box.data.Box then
-                box.data.Box.Position = UDim2.fromOffset(box.minX, box.minY)
-                box.data.Box.Size = UDim2.fromOffset(
-                    math.max(box.maxX - box.minX, 2),
-                    math.max(box.maxY - box.minY, 2)
-                )
-                box.data.BoxStroke.Color = box.data.BoxColor or Color3.fromRGB(255, 255, 255)
-                box.data.Box.Visible = true
-            end
         end
     end
 
     -- Hide boxes for players not in any group
     local drawnData = {}
     for _, group in ipairs(groups) do
-        for _, box in ipairs(group.boxes) do
-            drawnData[box.data] = true
-        end
+        for _, box in ipairs(group.boxes) do drawnData[box.data] = true end
     end
     for _, data in pairs(ESPObjects) do
         if not drawnData[data] and data.Box then
             data.Box.Visible = false
+            data.DisplayBounds = nil
         end
     end
 end
 
+-- Per-frame Drawing updates (3D boxes + tracers at full framerate)
+local function UpdateDrawings()
+    if not Settings.ESP then return end
+    local myRoot = GetRoot(LocalPlayer.Character)
+    for player, data in pairs(ESPObjects) do
+        if player.Parent == Players and data.Character then
+            local character = data.Character
+            local root = GetRoot(character)
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if root and humanoid and humanoid.Health > 0 then
+                local distance = myRoot and (myRoot.Position - root.Position).Magnitude or data.Distance
+                local side = data.Side or "Enemy"
+                local visibility = data.Visibility or { AnyVisible = true, Parts = {}, UseBodyParts = false }
+                Update3DBox(player, data, character, distance, side, visibility)
+                UpdateTracer(player, data, distance, side, visibility)
+            else
+                if data.Box3DLines then for _, line in ipairs(data.Box3DLines) do line.Visible = false end end
+                if data.Tracer then data.Tracer.Visible = false end
+            end
+        end
+    end
+end
+
+-- Main ESP update (0.05s interval)
 local function UpdateESP(Player, Data)
-    if not Settings.ESP then
-        HideESP(Data)
-        return
-    end
-
+    if not Settings.ESP then HideESP(Data); return end
     local Character = GetCharacter(Player)
-    if not Character then
-        HideESP(Data)
-        return
-    end
-
+    if not Character then HideESP(Data); return end
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     local Root = GetRoot(Character)
     local MyRoot = GetRoot(LocalPlayer.Character)
-
-    if not Humanoid or not Root or not MyRoot or Humanoid.Health <= 0 then
-        HideESP(Data)
-        return
-    end
+    if not Humanoid or not Root or not MyRoot or Humanoid.Health <= 0 then HideESP(Data); return end
 
     if Data.Character ~= Character then
         Data.Character = Character
@@ -2160,11 +1357,11 @@ local function UpdateESP(Player, Data)
         Data.HighlightMode = nil
         ClearHighlights(Data)
     end
-
     Data.Billboard.Adornee = Root
-
     local Distance = (MyRoot.Position - Root.Position).Magnitude
     local Side = GetSide(Player)
+    Data.Distance = Distance
+    Data.Side = Side
 
     if Settings.VisibilityCheck then
         Data.Visibility = GetVisibility(Character, Distance)
@@ -2172,18 +1369,11 @@ local function UpdateESP(Player, Data)
         Data.Visibility = { AnyVisible = true, Parts = {}, UseBodyParts = false }
     end
 
-    -- Text
     UpdateText(Player, Data, Distance, Side)
-
-    -- Highlights
     UpdateHighlights(Player, Data, Distance, Side, Data.Visibility)
 
-    -- Calculate box bounds (store, don't draw — drawn in UpdateBoxes)
-    local boxEnabled = Settings.Boxes
-        and Settings.ESP
-        and Distance <= Settings.BoxDistance
-        and IsFeatureEnabled(Side, "Box", Distance)
-
+    -- Calculate box bounds (store for UpdateBoxes to draw with animation)
+    local boxEnabled = Settings.Boxes and Settings.ESP and Distance <= Settings.BoxDistance and IsFeatureEnabled(Side, "Box", Distance)
     if boxEnabled then
         local MinX, MinY, MaxX, MaxY = GetScreenBounds(Character)
         if MinX then
@@ -2199,12 +1389,6 @@ local function UpdateESP(Player, Data)
         if Data.Box then Data.Box.Visible = false end
         Data.BoxVisible = false
     end
-
-    -- 3D box
-    Update3DBox(Player, Data, Character, Distance, Side, Data.Visibility)
-
-    -- Tracer
-    UpdateTracer(Player, Data, Distance, Side, Data.Visibility)
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -2212,15 +1396,11 @@ end
 -- ═══════════════════════════════════════════════════════════
 
 for _, Player in ipairs(Players:GetPlayers()) do
-    if Player ~= LocalPlayer then
-        CreateESP(Player)
-    end
+    if Player ~= LocalPlayer then CreateESP(Player) end
 end
 
 Players.PlayerAdded:Connect(function(Player)
-    if Player ~= LocalPlayer then
-        CreateESP(Player)
-    end
+    if Player ~= LocalPlayer then CreateESP(Player) end
 end)
 
 Players.PlayerRemoving:Connect(function(Player)
@@ -2248,6 +1428,11 @@ RunService.RenderStepped:Connect(function(Delta)
         end
     end
 
+    -- Per-frame updates: smooth 3D boxes, tracers, and animated box grouping
+    UpdateDrawings()
+    UpdateBoxes()
+
+    -- Periodic ESP update (0.05s)
     if Timer < UPDATE_INTERVAL then return end
     Timer = 0
 
@@ -2260,7 +1445,4 @@ RunService.RenderStepped:Connect(function(Delta)
             RemoveESP(Player)
         end
     end
-
-    -- Draw 2D boxes with grouping (after all players are updated)
-    UpdateBoxes()
 end)
